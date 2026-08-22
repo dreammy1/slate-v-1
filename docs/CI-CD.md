@@ -53,3 +53,23 @@ CI provisions MySQL, initializes `db/schema.sql`, starts Slate through PHP's bui
 ## Security notes
 
 Never add `.env`, private SSH keys, database passwords, or runtime uploads to the repository. Use GitHub Environment secrets for deployment credentials and keep application secrets on the destination server. For production, enable environment approvals and restrict the production environment to signed or reviewed version tags where practical.
+
+## Security auditing and dependency updates
+
+The repository also includes `.github/workflows/security.yml` and `.github/dependabot.yml`.
+
+The security workflow runs on pull requests to `main` or `develop`, pushes to `main`, a weekly scheduled scan, and manual dispatch. It performs the following checks:
+
+| Check | Coverage |
+|---|---|
+| Dependency review | Reviews dependency changes in pull requests and blocks high-severity additions. |
+| Composer audit | Installs the PHP dependency set and runs `composer audit`. |
+| npm audit | Installs the locked Playwright dependency tree and fails on high or critical advisories. |
+| CodeQL | Scans both PHP and JavaScript with the `security-extended` query set. |
+| Secret scanning | Scans the full Git history with Gitleaks. |
+
+Dependabot checks Composer, npm, and GitHub Actions dependencies weekly. It groups related updates, limits open update pull requests to five per ecosystem, and labels them for triage.
+
+The CodeQL job requires the repository’s **Code security** settings to permit CodeQL analysis and upload results. The workflow requests only the permissions needed for source reading, pull-request review, security-event uploads, and action metadata. Gitleaks uses the automatically provided `GITHUB_TOKEN`; no additional secret is required for the basic repository scan.
+
+If the repository’s Composer manifest continues to use a wildcard dependency constraint, Dependabot and Composer may propose updates more frequently than a pinned production manifest would. For production stability, review and pin dependency versions after the first successful audit cycle, then commit the generated `composer.lock` file if the deployment process supports it.
