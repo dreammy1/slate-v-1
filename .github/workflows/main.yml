@@ -6,6 +6,24 @@ on:
   push:
     branches: [main]
     tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      deployment_mode:
+        description: Deployment behavior for manual verification
+        required: true
+        default: dry-run
+        type: choice
+        options:
+          - dry-run
+          - deploy
+      deployment_target:
+        description: Environment targeted by a manual deployment
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - production
 
 permissions:
   contents: read
@@ -271,24 +289,36 @@ jobs:
     name: Deploy main to staging
     runs-on: ubuntu-latest
     needs: package
-    if: ${{ github.ref == 'refs/heads/main' && needs.package.result == 'success' }}
+    if: ${{ needs.package.result == 'success' && (github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && inputs.deployment_target == 'staging')) }}
     environment: staging
     env:
       STAGING_HOST: ${{ vars.STAGING_HOST }}
       STAGING_USER: ${{ vars.STAGING_USER }}
       STAGING_PATH: ${{ vars.STAGING_PATH }}
       STAGING_SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+      DEPLOY_ALERT_WEBHOOK: ${{ secrets.DEPLOY_ALERT_WEBHOOK }}
+      DEPLOY_MAX_SECONDS: ${{ vars.DEPLOY_MAX_SECONDS || '600' }}
     steps:
       - name: Download release artifact
         uses: actions/download-artifact@v4
         with:
           name: slate-release-${{ github.ref_name }}
           path: dist
+      - name: Verify staging artifact in dry-run mode
+        if: github.event_name == 'workflow_dispatch' && inputs.deployment_mode == 'dry-run'
+        run: |
+          set -euo pipefail
+          unzip -l dist/*.zip
+          test -s dist/*.zip
+          echo 'Staging dry-run passed; no server connection was attempted.' >> "$GITHUB_STEP_SUMMARY"
+
       - name: Deploy over SSH with rsync
+        if: github.event_name != 'workflow_dispatch' || inputs.deployment_mode == 'deploy'
         shell: bash
         run: |
           set -euo pipefail
           test -n "$STAGING_HOST" && test -n "$STAGING_USER" && test -n "$STAGING_PATH" && test -n "$STAGING_SSH_KEY"
+          start_time=$(date +%s)
           install -m 700 -d ~/.ssh
           printf '%s\n' "$STAGING_SSH_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
@@ -297,29 +327,58 @@ jobs:
           mkdir -p /tmp/slate-staging
           unzip -q dist/*.zip -d /tmp/slate-staging
           rsync -az --delete -e 'ssh -i ~/.ssh/id_ed25519' /tmp/slate-staging/slate/ "$STAGING_USER@$STAGING_HOST:$STAGING_PATH/"
+          duration=$(( $(date +%s) - start_time ))
+          echo "### Staging deployment telemetry\n- Duration: ${duration}s\n- Threshold: ${DEPLOY_MAX_SECONDS}s" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$duration" -gt "$DEPLOY_MAX_SECONDS" ]; then
+            echo "::warning title=Slow staging deployment::Deployment took ${duration}s (threshold: ${DEPLOY_MAX_SECONDS}s)"
+            if [ -n "$DEPLOY_ALERT_WEBHOOK" ]; then
+              curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' \
+                --data "{\"text\":\"Slate staging deployment was slow: ${duration}s (threshold ${DEPLOY_MAX_SECONDS}s), run ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\"}" \
+                "$DEPLOY_ALERT_WEBHOOK" || echo 'Slow-deployment alert could not be delivered.'
+            fi
+          fi
+
+      - name: Alert on staging deployment failure
+        if: failure() && env.DEPLOY_ALERT_WEBHOOK != ''
+        run: |
+          curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' \
+            --data "{\"text\":\"Slate staging deployment failed: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\"}" \
+            "$DEPLOY_ALERT_WEBHOOK" || echo 'Failure alert could not be delivered.'
 
   deploy-production:
     name: Deploy version tag to production
     runs-on: ubuntu-latest
     needs: package
-    if: ${{ startsWith(github.ref, 'refs/tags/v') && needs.package.result == 'success' }}
+    if: ${{ needs.package.result == 'success' && (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.deployment_mode == 'deploy' && inputs.deployment_target == 'production')) }}
     environment: production
     env:
       PRODUCTION_HOST: ${{ vars.PRODUCTION_HOST }}
       PRODUCTION_USER: ${{ vars.PRODUCTION_USER }}
       PRODUCTION_PATH: ${{ vars.PRODUCTION_PATH }}
       PRODUCTION_SSH_KEY: ${{ secrets.PRODUCTION_SSH_KEY }}
+      DEPLOY_ALERT_WEBHOOK: ${{ secrets.DEPLOY_ALERT_WEBHOOK }}
+      DEPLOY_MAX_SECONDS: ${{ vars.DEPLOY_MAX_SECONDS || '600' }}
     steps:
       - name: Download release artifact
         uses: actions/download-artifact@v4
         with:
           name: slate-release-${{ github.ref_name }}
           path: dist
+      - name: Verify production artifact in dry-run mode
+        if: github.event_name == 'workflow_dispatch' && inputs.deployment_mode == 'dry-run'
+        run: |
+          set -euo pipefail
+          unzip -l dist/*.zip
+          test -s dist/*.zip
+          echo 'Production dry-run passed; no server connection was attempted.' >> "$GITHUB_STEP_SUMMARY"
+
       - name: Deploy over SSH with rsync
+        if: github.event_name != 'workflow_dispatch' || inputs.deployment_mode == 'deploy'
         shell: bash
         run: |
           set -euo pipefail
           test -n "$PRODUCTION_HOST" && test -n "$PRODUCTION_USER" && test -n "$PRODUCTION_PATH" && test -n "$PRODUCTION_SSH_KEY"
+          start_time=$(date +%s)
           install -m 700 -d ~/.ssh
           printf '%s\n' "$PRODUCTION_SSH_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
@@ -328,3 +387,20 @@ jobs:
           mkdir -p /tmp/slate-production
           unzip -q dist/*.zip -d /tmp/slate-production
           rsync -az --delete -e 'ssh -i ~/.ssh/id_ed25519' /tmp/slate-production/slate/ "$PRODUCTION_USER@$PRODUCTION_HOST:$PRODUCTION_PATH/"
+          duration=$(( $(date +%s) - start_time ))
+          echo "### Production deployment telemetry\n- Duration: ${duration}s\n- Threshold: ${DEPLOY_MAX_SECONDS}s" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$duration" -gt "$DEPLOY_MAX_SECONDS" ]; then
+            echo "::warning title=Slow production deployment::Deployment took ${duration}s (threshold: ${DEPLOY_MAX_SECONDS}s)"
+            if [ -n "$DEPLOY_ALERT_WEBHOOK" ]; then
+              curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' \
+                --data "{\"text\":\"Slate production deployment was slow: ${duration}s (threshold ${DEPLOY_MAX_SECONDS}s), run ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\"}" \
+                "$DEPLOY_ALERT_WEBHOOK" || echo 'Slow-deployment alert could not be delivered.'
+            fi
+          fi
+
+      - name: Alert on production deployment failure
+        if: failure() && env.DEPLOY_ALERT_WEBHOOK != ''
+        run: |
+          curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' \
+            --data "{\"text\":\"Slate production deployment failed: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\"}" \
+            "$DEPLOY_ALERT_WEBHOOK" || echo 'Failure alert could not be delivered.'

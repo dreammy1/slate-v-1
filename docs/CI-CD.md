@@ -46,7 +46,9 @@ The workflow deliberately fails rather than silently skipping a deployment when 
 
 Deployment is handled by the final jobs in `.github/workflows/main.yml`. The security checks are exposed as a reusable workflow and are called directly from the main CI graph, so packaging and deployment depend on the same successful security job rather than waiting for a separate workflow run. A successful push to `main` deploys once to the protected `staging` environment. A successful `v*.*.*` tag deploys once to the protected `production` environment. This prevents a deployment from proceeding when either the application checks or security checks fail and eliminates duplicate `workflow_run` deployment executions.
 
-Configure the `staging` and `production` environments with required reviewers and branch/tag restrictions where appropriate. Production should normally require approval and allow only version-tag deployments. The deployment jobs use the same `STAGING_*` and `PRODUCTION_*` variables and SSH key secrets listed above.
+Configure the `staging` and `production` environments with required reviewers and branch/tag restrictions where appropriate. Production should normally require approval and allow only version-tag deployments. The deployment jobs use the same `STAGING_*` and `PRODUCTION_*` variables and SSH key secrets listed above. Manual runs support a `dry-run` mode that validates the release artifact without contacting a server; choose `deploy` only when the target environment is configured and an actual deployment is intended.
+
+Each real staging or production deployment records its duration in the GitHub Actions job summary. Set the optional environment variable `DEPLOY_MAX_SECONDS` to define the slow-deployment threshold; it defaults to 600 seconds. When a deployment exceeds the threshold, the workflow emits a warning and, if the environment secret `DEPLOY_ALERT_WEBHOOK` is configured, posts a notification containing the run URL. The same webhook receives a failure notification when an SSH/rsync deployment fails. Alert delivery is best-effort and does not mask the deployment failure.
 
 ## E2E tests
 
