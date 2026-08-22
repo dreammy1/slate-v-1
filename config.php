@@ -87,6 +87,7 @@ require_once SLATE_ROOT . '/includes/SmtpOAuth.php';
 require_once SLATE_ROOT . '/includes/Plugin.php';
 require_once SLATE_ROOT . '/includes/PluginLoader.php';
 require_once SLATE_ROOT . '/includes/PublicRouter.php';
+require_once SLATE_ROOT . '/includes/Mcp.php';
 require_once SLATE_ROOT . '/includes/ui_components.php';
 
 // ── Force HTTPS (Security setting) ───────────────────────────

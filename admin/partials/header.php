@@ -139,6 +139,15 @@ $coreNav = [
         'group' => 'system',
     ],
     [
+        'slug'  => 'mcp',
+        'label' => __('ai_mcp', 'AI / MCP'),
+        'href'  => SLATE_URL . '/admin/mcp.php',
+        'icon'  => 'key',
+        'perm'  => 'settings.view',
+        'order' => 895,
+        'group' => 'system',
+    ],
+    [
         'slug'  => 'settings',
         'label' => __('settings', 'Settings'),
         'href'  => SLATE_URL . '/admin/settings.php',
@@ -183,7 +192,8 @@ if (!$currentNav) {
         'users.php'         => 'users',
         'roles.php'         => 'roles',
         'contact_forms.php' => 'contact-forms',
-        'settings.php'      => 'settings',
+                'settings.php'     => 'settings',
+        'mcp.php'          => 'mcp',
         'audit.php'         => 'audit',
     ];
     $currentNav = $map[$script] ?? null;
