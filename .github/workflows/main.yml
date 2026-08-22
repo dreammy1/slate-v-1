@@ -1,0 +1,283 @@
+name: Slate CI/CD
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main]
+    tags: ['v*.*.*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: slate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  COMPOSER_NO_INTERACTION: '1'
+  MYSQL_DATABASE: slate_test
+  MYSQL_USER: slate
+  MYSQL_PASSWORD: slate
+  MYSQL_HOST: 127.0.0.1
+  MYSQL_PORT: '3306'
+  DB_NAME: slate_test
+  DB_USER: slate
+  DB_PASS: slate
+  DB_HOST: 127.0.0.1
+  DB_CHARSET: utf8mb4
+  APP_URL: http://127.0.0.1:8080/slate
+  APP_SECRET: ci-only-secret
+  CRON_SECRET: ci-only-cron-secret
+  TENANT_ID: '1'
+
+jobs:
+  quality-checks:
+    name: PHP lint, dependency validation, and asset checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, zip, openssl, fileinfo, curl, gd, pdo_mysql
+          tools: composer
+          coverage: none
+
+      - name: Validate Composer manifest
+        run: composer validate --no-check-publish
+
+      - name: Lint all PHP files
+        shell: bash
+        run: |
+          set -euo pipefail
+          failed=0
+          while IFS= read -r -d '' file; do
+            if ! php -l "$file" >/dev/null; then
+              echo "PHP syntax error: $file"
+              failed=1
+            fi
+          done < <(find . -type f -name '*.php' -not -path './.git/*' -not -path './vendor/*' -print0)
+          exit "$failed"
+
+      - name: Run PHPStan when configured
+        if: hashFiles('phpstan.neon', 'phpstan.neon.dist') != ''
+        run: |
+          composer install --prefer-dist --no-progress
+          vendor/bin/phpstan analyse --no-progress
+
+      - name: Run JavaScript and CSS lint when configured
+        if: hashFiles('package.json') != ''
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+          npm run lint --if-present
+          npm run build --if-present
+
+  php-tests:
+    name: PHP tests (PHP ${{ matrix.php }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.1', '8.2', '8.3']
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_DATABASE: slate_test
+          MYSQL_USER: slate
+          MYSQL_PASSWORD: ${{ secrets.WP_TEST_DB_PASSWORD || 'slate' }}
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+    env:
+      DB_PASS: ${{ secrets.WP_TEST_DB_PASSWORD || 'slate' }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mbstring, zip, openssl, fileinfo, curl, gd, pdo_mysql
+          tools: composer
+          coverage: none
+
+      - name: Install PHP dependencies
+        run: composer install --prefer-dist --no-progress
+
+      - name: Initialize the CI database
+        run: |
+          mysql --protocol=tcp -h 127.0.0.1 -uroot -proot slate_test < db/schema.sql
+
+      - name: Run Slate test suite
+        run: bash tests/run.sh
+
+  e2e-tests:
+    name: E2E smoke tests
+    runs-on: ubuntu-latest
+    needs: [quality-checks, php-tests]
+    if: ${{ always() && needs.quality-checks.result == 'success' && needs.php-tests.result == 'success' }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Run Playwright suite when present
+        if: hashFiles('tests/e2e/**', 'playwright.config.*') != ''
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npm run test:e2e
+
+      - name: Report E2E suite status
+        if: hashFiles('tests/e2e/**', 'playwright.config.*') == ''
+        run: |
+          echo 'No Playwright/Cypress suite is currently present in this repository.'
+          echo 'The E2E job is intentionally green but skipped until tests/e2e is added.'
+
+  package:
+    name: Build release artifact
+    runs-on: ubuntu-latest
+    needs: [quality-checks, php-tests, e2e-tests]
+    if: ${{ always() && needs.quality-checks.result == 'success' && needs.php-tests.result == 'success' && needs.e2e-tests.result == 'success' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) }}
+    permissions:
+      contents: write
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, zip, openssl, fileinfo, curl, gd, pdo_mysql
+          tools: composer
+          coverage: none
+
+      - name: Build frontend assets when configured
+        if: hashFiles('package.json') != ''
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+          npm run build --if-present
+
+      - name: Create clean application ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          if [ -z "$version" ] || [ "$version" = "$GITHUB_REF_NAME" ]; then version="main-${GITHUB_SHA::7}"; fi
+          mkdir -p dist/slate
+          rsync -a ./ dist/slate/ \
+            --exclude '.git/' \
+            --exclude '.github/' \
+            --exclude '.env' \
+            --include '.env.example' \
+            --exclude '.env.*' \
+            --exclude 'tests/' \
+            --exclude 'scratchpad/' \
+            --exclude 'uploads/' \
+            --exclude '*.log' \
+            --exclude 'error_log' \
+            --exclude '*.bak' \
+            --exclude 'node_modules/' \
+            --exclude 'dist/' \
+            --exclude 'plugins/_dist/'
+          (cd dist && zip -qr "slate-v${version}.zip" slate)
+          echo "artifact=dist/slate-v${version}.zip" >> "$GITHUB_OUTPUT"
+        id: bundle
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: slate-release-${{ github.ref_name }}
+          path: ${{ steps.bundle.outputs.artifact }}
+          if-no-files-found: error
+
+      - name: Publish GitHub Release for version tags
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" "${{ steps.bundle.outputs.artifact }}" --generate-notes --verify-tag
+
+  deploy-staging:
+    name: Deploy main to staging
+    runs-on: ubuntu-latest
+    needs: package
+    if: ${{ github.ref == 'refs/heads/main' && needs.package.result == 'success' }}
+    environment: staging
+    env:
+      STAGING_HOST: ${{ vars.STAGING_HOST }}
+      STAGING_USER: ${{ vars.STAGING_USER }}
+      STAGING_PATH: ${{ vars.STAGING_PATH }}
+      STAGING_SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+    steps:
+      - name: Download release artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: slate-release-${{ github.ref_name }}
+          path: dist
+
+      - name: Deploy over SSH with rsync
+        if: ${{ env.STAGING_HOST != '' && env.STAGING_USER != '' && env.STAGING_PATH != '' && env.STAGING_SSH_KEY != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$STAGING_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$STAGING_HOST" >> ~/.ssh/known_hosts
+          unzip -q dist/*.zip -d /tmp/slate-staging
+          rsync -az --delete -e 'ssh -i ~/.ssh/id_ed25519' /tmp/slate-staging/slate/ "$STAGING_USER@$STAGING_HOST:$STAGING_PATH/"
+
+      - name: Fail when staging credentials are not configured
+        if: ${{ env.STAGING_HOST == '' || env.STAGING_USER == '' || env.STAGING_PATH == '' || env.STAGING_SSH_KEY == '' }}
+        run: |
+          echo 'Staging deployment is enabled for main, but required staging variables/secrets are missing.'
+          exit 1
+
+  deploy-production:
+    name: Deploy version tag to production
+    runs-on: ubuntu-latest
+    needs: package
+    if: ${{ startsWith(github.ref, 'refs/tags/v') && needs.package.result == 'success' }}
+    environment: production
+    env:
+      PRODUCTION_HOST: ${{ vars.PRODUCTION_HOST }}
+      PRODUCTION_USER: ${{ vars.PRODUCTION_USER }}
+      PRODUCTION_PATH: ${{ vars.PRODUCTION_PATH }}
+      PRODUCTION_SSH_KEY: ${{ secrets.PRODUCTION_SSH_KEY }}
+    steps:
+      - name: Download release artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: slate-release-${{ github.ref_name }}
+          path: dist
+
+      - name: Deploy over SSH with rsync
+        if: ${{ env.PRODUCTION_HOST != '' && env.PRODUCTION_USER != '' && env.PRODUCTION_PATH != '' && env.PRODUCTION_SSH_KEY != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$PRODUCTION_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$PRODUCTION_HOST" >> ~/.ssh/known_hosts
+          unzip -q dist/*.zip -d /tmp/slate-production
+          rsync -az --delete -e 'ssh -i ~/.ssh/id_ed25519' /tmp/slate-production/slate/ "$PRODUCTION_USER@$PRODUCTION_HOST:$PRODUCTION_PATH/"
+
+      - name: Fail when production credentials are not configured
+        if: ${{ env.PRODUCTION_HOST == '' || env.PRODUCTION_USER == '' || env.PRODUCTION_PATH == '' || env.PRODUCTION_SSH_KEY == '' }}
+        run: |
+          echo 'Production deployment is enabled for version tags, but required production variables/secrets are missing.'
+          exit 1
