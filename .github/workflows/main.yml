@@ -127,16 +127,59 @@ jobs:
     runs-on: ubuntu-latest
     needs: [quality-checks, php-tests]
     if: ${{ always() && needs.quality-checks.result == 'success' && needs.php-tests.result == 'success' }}
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_DATABASE: slate_test
+          MYSQL_USER: slate
+          MYSQL_PASSWORD: ${{ secrets.WP_TEST_DB_PASSWORD || 'slate' }}
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+    env:
+      DB_PASS: ${{ secrets.WP_TEST_DB_PASSWORD || 'slate' }}
     steps:
       - name: Check out source
         uses: actions/checkout@v4
 
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, zip, openssl, fileinfo, curl, gd, pdo_mysql
+          tools: composer
+          coverage: none
+
+      - name: Initialize the E2E database
+        run: mysql --protocol=tcp -h 127.0.0.1 -uroot -proot slate_test < db/schema.sql
+
+      - name: Start Slate server
+        run: |
+          nohup php -S 127.0.0.1:8080 -t . > /tmp/slate-e2e-server.log 2>&1 &
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8080/admin/login.php >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/slate-e2e-server.log
+          exit 1
+
+      - name: Install browser test dependencies
+        if: hashFiles('tests/e2e/**', 'playwright.config.*') != ''
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        if: hashFiles('tests/e2e/**', 'playwright.config.*') != ''
+        run: npx playwright install --with-deps chromium
+
       - name: Run Playwright suite when present
         if: hashFiles('tests/e2e/**', 'playwright.config.*') != ''
-        run: |
-          npm ci
-          npx playwright install --with-deps chromium
-          npm run test:e2e
+        run: npm run test:e2e
 
       - name: Report E2E suite status
         if: hashFiles('tests/e2e/**', 'playwright.config.*') == ''

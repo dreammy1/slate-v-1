@@ -44,9 +44,11 @@ The target server must provide SSH access, `rsync`, and `unzip`. The deployment 
 
 The workflow deliberately fails rather than silently skipping a deployment when the relevant environment variables or SSH key are missing. The release artifact is a source deployment bundle; the target server still needs its own `.env`, database, PHP extensions, web-server configuration, and writable runtime directories.
 
-## E2E extension point
+## E2E tests
 
-No Playwright or Cypress suite currently exists in this repository. The E2E job therefore reports a visible, successful skip rather than inventing WordPress-specific tests that do not match Slate. To activate browser testing, add `tests/e2e/`, a Playwright configuration file, a `package.json` script named `test:e2e`, and a deterministic test environment with a configured Slate database and web server.
+The repository now includes a Playwright suite under `tests/e2e/` and a `playwright.config.js` configuration. The initial smoke coverage verifies the admin login surface, customer login surface, password visibility behavior, recovery-link wiring, internal database-file protection, and branded handling of an unknown direct page.
+
+CI provisions MySQL, initializes `db/schema.sql`, starts Slate through PHP's built-in server, installs Chromium, and runs `npm run test:e2e`. Local execution requires PHP with the Slate extensions, a reachable MySQL database configured through environment variables, Node.js, and Chromium. Run the browser suite with `npm ci`, `npx playwright install --with-deps chromium`, and `npm run test:e2e` after starting a local Slate server.
 
 ## Security notes
 

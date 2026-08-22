@@ -1,0 +1,12 @@
+{
+  "name": "slate-e2e",
+  "private": true,
+  "version": "1.0.0",
+  "description": "End-to-end tests for the Slate PHP application",
+  "scripts": {
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.52.0"
+  }
+}
