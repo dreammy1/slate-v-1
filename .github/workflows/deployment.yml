@@ -1,0 +1,147 @@
+name: Deploy Slate
+
+on:
+  workflow_run:
+    workflows: ['Slate CI/CD', 'Security audit']
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: slate-deploy-${{ github.event.workflow_run.head_branch || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    name: Verify CI and security gates
+    runs-on: ubuntu-latest
+    if: >-
+      ${{
+        github.event_name == 'workflow_dispatch' ||
+        (github.event.workflow_run.event == 'push' &&
+         github.event.workflow_run.conclusion == 'success' &&
+         (github.event.workflow_run.head_branch == 'main' ||
+          startsWith(github.event.workflow_run.head_branch, 'v')))
+      }}
+    outputs:
+      target: ${{ steps.verify.outputs.target }}
+      artifact: ${{ steps.verify.outputs.artifact }}
+      run_id: ${{ steps.verify.outputs.run_id }}
+    steps:
+      - name: Verify both required workflows passed for the same commit
+        id: verify
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          CURRENT_RUN_ID: ${{ github.event.workflow_run.id }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo 'Manual dispatch is a configuration check only; use a completed CI/security run for deployment.'
+            exit 1
+          fi
+
+          runs="$(gh api --paginate \
+            "repos/$REPOSITORY/actions/runs?head_sha=$HEAD_SHA&per_page=100" \
+            --jq '.workflow_runs[] | select(.event == "push") | {name, status, conclusion, created_at, id}' \
+            | jq -s 'sort_by(.created_at) | reverse | group_by(.name) | map(.[0])')"
+
+          echo "$runs" | jq .
+          echo "$runs" | jq -e '
+            (map(select(.name == "Slate CI/CD")) | length == 1) and
+            (map(select(.name == "Security audit")) | length == 1) and
+            all(.[]; .status == "completed" and .conclusion == "success")
+          ' >/dev/null
+
+          if [ "$HEAD_BRANCH" = "main" ]; then
+            target='staging'
+            artifact="slate-release-main"
+          elif [[ "$HEAD_BRANCH" == v* ]]; then
+            target='production'
+            artifact="slate-release-${HEAD_BRANCH}"
+          else
+            echo "Unsupported deployment ref: $HEAD_BRANCH"
+            exit 1
+          fi
+
+          echo "target=$target" >> "$GITHUB_OUTPUT"
+          echo "artifact=$artifact" >> "$GITHUB_OUTPUT"
+          echo "run_id=$CURRENT_RUN_ID" >> "$GITHUB_OUTPUT"
+
+  deploy-staging:
+    name: Deploy to staging
+    needs: gate
+    if: needs.gate.outputs.target == 'staging'
+    runs-on: ubuntu-latest
+    environment: staging
+    env:
+      STAGING_HOST: ${{ vars.STAGING_HOST }}
+      STAGING_USER: ${{ vars.STAGING_USER }}
+      STAGING_PATH: ${{ vars.STAGING_PATH }}
+      STAGING_SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+    steps:
+      - name: Download verified CI artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.gate.outputs.artifact }}
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ needs.gate.outputs.run_id }}
+          path: dist
+
+      - name: Deploy over SSH with rsync
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$STAGING_HOST" && test -n "$STAGING_USER" && test -n "$STAGING_PATH" && test -n "$STAGING_SSH_KEY"
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$STAGING_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$STAGING_HOST" >> ~/.ssh/known_hosts
+          rm -rf /tmp/slate-staging
+          mkdir -p /tmp/slate-staging
+          unzip -q dist/*.zip -d /tmp/slate-staging
+          rsync -az --delete -e 'ssh -i ~/.ssh/id_ed25519' /tmp/slate-staging/slate/ "$STAGING_USER@$STAGING_HOST:$STAGING_PATH/"
+
+  deploy-production:
+    name: Deploy to production
+    needs: gate
+    if: needs.gate.outputs.target == 'production'
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      PRODUCTION_HOST: ${{ vars.PRODUCTION_HOST }}
+      PRODUCTION_USER: ${{ vars.PRODUCTION_USER }}
+      PRODUCTION_PATH: ${{ vars.PRODUCTION_PATH }}
+      PRODUCTION_SSH_KEY: ${{ secrets.PRODUCTION_SSH_KEY }}
+    steps:
+      - name: Download verified CI artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.gate.outputs.artifact }}
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ needs.gate.outputs.run_id }}
+          path: dist
+
+      - name: Deploy over SSH with rsync
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$PRODUCTION_HOST" && test -n "$PRODUCTION_USER" && test -n "$PRODUCTION_PATH" && test -n "$PRODUCTION_SSH_KEY"
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$PRODUCTION_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$PRODUCTION_HOST" >> ~/.ssh/known_hosts
+          rm -rf /tmp/slate-production
+          mkdir -p /tmp/slate-production
+          unzip -q dist/*.zip -d /tmp/slate-production
+          rsync -az --delete -e 'ssh -i ~/.ssh/id_ed25519' /tmp/slate-production/slate/ "$PRODUCTION_USER@$PRODUCTION_HOST:$PRODUCTION_PATH/"

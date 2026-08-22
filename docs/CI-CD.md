@@ -44,6 +44,10 @@ The target server must provide SSH access, `rsync`, and `unzip`. The deployment 
 
 The workflow deliberately fails rather than silently skipping a deployment when the relevant environment variables or SSH key are missing. The release artifact is a source deployment bundle; the target server still needs its own `.env`, database, PHP extensions, web-server configuration, and writable runtime directories.
 
+Deployment is handled by `.github/workflows/deployment.yml`, not inline in the build workflow. It listens for completed `Slate CI/CD` and `Security audit` runs, verifies that both successful runs refer to the same commit, and only then downloads the artifact from that CI run. A successful push to `main` deploys to the protected `staging` environment. A successful `v*.*.*` tag deploys to the protected `production` environment. This prevents a deployment from proceeding when either the application checks or security checks fail.
+
+Configure the `staging` and `production` environments with required reviewers and branch/tag restrictions where appropriate. Production should normally require approval and allow only version-tag deployments. The deployment workflow uses the same `STAGING_*` and `PRODUCTION_*` variables and SSH key secrets listed above.
+
 ## E2E tests
 
 The repository now includes a Playwright suite under `tests/e2e/` and a `playwright.config.js` configuration. The initial smoke coverage verifies the admin login surface, customer login surface, password visibility behavior, recovery-link wiring, internal database-file protection, and branded handling of an unknown direct page.
