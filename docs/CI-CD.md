@@ -44,9 +44,9 @@ The target server must provide SSH access, `rsync`, and `unzip`. The deployment 
 
 The workflow deliberately fails rather than silently skipping a deployment when the relevant environment variables or SSH key are missing. The release artifact is a source deployment bundle; the target server still needs its own `.env`, database, PHP extensions, web-server configuration, and writable runtime directories.
 
-Deployment is handled by `.github/workflows/deployment.yml`, not inline in the build workflow. It listens for completed `Slate CI/CD` and `Security audit` runs, verifies that both successful runs refer to the same commit, and only then downloads the artifact from that CI run. A successful push to `main` deploys to the protected `staging` environment. A successful `v*.*.*` tag deploys to the protected `production` environment. This prevents a deployment from proceeding when either the application checks or security checks fail.
+Deployment is handled by the final jobs in `.github/workflows/main.yml`. The security checks are exposed as a reusable workflow and are called directly from the main CI graph, so packaging and deployment depend on the same successful security job rather than waiting for a separate workflow run. A successful push to `main` deploys once to the protected `staging` environment. A successful `v*.*.*` tag deploys once to the protected `production` environment. This prevents a deployment from proceeding when either the application checks or security checks fail and eliminates duplicate `workflow_run` deployment executions.
 
-Configure the `staging` and `production` environments with required reviewers and branch/tag restrictions where appropriate. Production should normally require approval and allow only version-tag deployments. The deployment workflow uses the same `STAGING_*` and `PRODUCTION_*` variables and SSH key secrets listed above.
+Configure the `staging` and `production` environments with required reviewers and branch/tag restrictions where appropriate. Production should normally require approval and allow only version-tag deployments. The deployment jobs use the same `STAGING_*` and `PRODUCTION_*` variables and SSH key secrets listed above.
 
 ## E2E tests
 
@@ -60,7 +60,7 @@ Never add `.env`, private SSH keys, database passwords, or runtime uploads to th
 
 ## Security auditing and dependency updates
 
-The repository also includes `.github/workflows/security.yml` and `.github/dependabot.yml`.
+The repository also includes the reusable `.github/workflows/security.yml` and `.github/dependabot.yml`. The security workflow retains its weekly and manual standalone triggers, while normal pull-request, `main`, and tag validation calls it directly from `main.yml`.
 
 The security workflow runs on pull requests to `main` or `develop`, pushes to `main`, a weekly scheduled scan, and manual dispatch. It performs the following checks:
 

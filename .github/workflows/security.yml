@@ -1,11 +1,13 @@
 name: Security audit
 
 on:
-  pull_request:
-    branches: [main, develop]
-  push:
-    branches: [main]
-    tags: ['v*.*.*']
+  workflow_call:
+    inputs:
+      run_dependency_review:
+        description: Run pull-request dependency review for this invocation
+        required: false
+        type: boolean
+        default: false
   schedule:
     - cron: '23 3 * * 1'
   workflow_dispatch:
@@ -20,7 +22,7 @@ concurrency:
 jobs:
   dependency-review:
     name: Review dependency changes
-    if: github.event_name == 'pull_request'
+    if: inputs.run_dependency_review
     runs-on: ubuntu-latest
     permissions:
       contents: read
