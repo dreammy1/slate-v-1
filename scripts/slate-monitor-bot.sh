@@ -53,11 +53,11 @@ if [[ -n "${GITHUB_TOKEN:-}" ]]; then
   if curl --fail-with-body --silent --show-error --max-time 30 \
       -H 'Accept: application/vnd.github+json' \
       -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-      "https://api.github.com/repos/${REPOSITORY}/actions/workflows/${WORKFLOW_FILE}/runs?per_page=1" > "$run_file"; then
-    run_status="$(jq -r '.workflow_runs[0].status // "unknown"' "$run_file")"
-    run_conclusion="$(jq -r '.workflow_runs[0].conclusion // "pending"' "$run_file")"
-    run_id="$(jq -r '.workflow_runs[0].id // ""' "$run_file")"
-    run_url="$(jq -r '.workflow_runs[0].html_url // ""' "$run_file")"
+      "https://api.github.com/repos/${REPOSITORY}/actions/workflows/${WORKFLOW_FILE}/runs?per_page=20" > "$run_file"; then
+    run_status="$(jq -r '[.workflow_runs[] | select((.head_branch // "") | startswith("v"))][0].status // "not_found"' "$run_file")"
+    run_conclusion="$(jq -r '[.workflow_runs[] | select((.head_branch // "") | startswith("v"))][0].conclusion // "not_run"' "$run_file")"
+    run_id="$(jq -r '[.workflow_runs[] | select((.head_branch // "") | startswith("v"))][0].id // ""' "$run_file")"
+    run_url="$(jq -r '[.workflow_runs[] | select((.head_branch // "") | startswith("v"))][0].html_url // ""' "$run_file")"
     deployment_status="attention"
     deployment_job_status="unknown"
     deployment_job_conclusion="pending"
@@ -71,9 +71,9 @@ if [[ -n "${GITHUB_TOKEN:-}" ]]; then
     if [[ "$run_status" == "completed" && "$run_conclusion" == "success" && "$deployment_job_status" == "completed" && "$deployment_job_conclusion" == "success" ]]; then
       deployment_status="healthy"
     else
-      failures+=("Latest workflow is ${run_status}/${run_conclusion}; production FTPS job is ${deployment_job_status}/${deployment_job_conclusion}")
+      failures+=("Latest version-tag workflow is ${run_status}/${run_conclusion}; production FTPS job is ${deployment_job_status}/${deployment_job_conclusion}")
     fi
-    printf '\n## CI/CD and FTPS status\n\n- Latest workflow status: **%s**\n- Latest workflow conclusion: **%s**\n- Production FTPS job: **%s/%s**\n- Run: %s\n' "$run_status" "$run_conclusion" "$deployment_job_status" "$deployment_job_conclusion" "${run_url:-unavailable}" >> "$summary_file"
+    printf '\n## CI/CD and FTPS status\n\n- Latest version-tag workflow status: **%s**\n- Latest version-tag workflow conclusion: **%s**\n- Production FTPS job: **%s/%s**\n- Run: %s\n' "$run_status" "$run_conclusion" "$deployment_job_status" "$deployment_job_conclusion" "${run_url:-unavailable}" >> "$summary_file"
   else
     deployment_status="failed"
     failures+=("GitHub Actions status request failed")
