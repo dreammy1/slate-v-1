@@ -1,0 +1,47 @@
+name: Slate production auto-monitor bot
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: slate-production-monitor
+  cancel-in-progress: true
+
+jobs:
+  monitor:
+    name: Check MCP and FTPS deployment status
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: production
+    env:
+      SLATE_MCP_URL: https://greenlightinduction.rakibhasaan.com/slate/mcp.php
+      SLATE_MCP_TOKEN: ${{ secrets.SLATE_MCP_TOKEN }}
+      SLATE_MONITOR_WEBHOOK_URL: ${{ secrets.SLATE_MONITOR_WEBHOOK_URL }}
+      GITHUB_TOKEN: ${{ github.token }}
+      GITHUB_REPOSITORY: ${{ github.repository }}
+      SLATE_WORKFLOW_FILE: main.yml
+      SLATE_MONITOR_FAIL_ON_ALERT: 'false'
+    steps:
+      - name: Check out monitoring code
+        uses: actions/checkout@v7
+
+      - name: Run Slate monitoring bot
+        id: monitor
+        shell: bash
+        run: |
+          chmod +x scripts/slate-monitor-bot.sh
+          scripts/slate-monitor-bot.sh | tee "$RUNNER_TEMP/slate-monitor-summary.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload monitoring report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: slate-monitor-${{ github.run_id }}
+          path: ${{ runner.temp }}/slate-monitor-summary.md
+          retention-days: 14
