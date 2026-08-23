@@ -285,7 +285,9 @@ final class ContentCoreBridge
             return self::$revisionsTable;
         }
         try {
-            $found = Database::row("SHOW TABLES LIKE 'content_revisions'");
+            $found = getenv('SLATE_TEST_SQLITE') === '1'
+                ? Database::row("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?", ['content_revisions'])
+                : Database::row("SHOW TABLES LIKE 'content_revisions'");
             return self::$revisionsTable = (bool) $found;
         } catch (\Throwable $e) {
             return self::$revisionsTable = false;

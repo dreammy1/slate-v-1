@@ -42,11 +42,17 @@ class Database {
         if (getenv('SLATE_TEST_SQLITE') === '1') {
             $sql = str_replace('INSERT IGNORE', 'INSERT OR IGNORE', $sql);
             $sql = str_replace('NOW()', 'CURRENT_TIMESTAMP', $sql);
-            $sql = preg_replace('/INT(?:\s+UNSIGNED)?\s+NOT\s+NULL\s+AUTO_INCREMENT/i', 'INTEGER PRIMARY KEY AUTOINCREMENT', $sql) ?? $sql;
-            if (preg_match('/^\s*SHOW\s+TABLES\s+LIKE\s+(.+)$/i', trim($sql), $show)) {
+            $sql = preg_replace('/\b(?:BIGINT|INT|SMALLINT)(?:\s+UNSIGNED)?\s+NOT\s+NULL\s+AUTO_INCREMENT/i', 'INTEGER PRIMARY KEY AUTOINCREMENT', $sql) ?? $sql;
+            if (preg_match('/^\s*SHOW\s+TABLES\s*$/i', trim($sql))) {
+                $sql = "SELECT name AS Tables_in_slate FROM sqlite_master WHERE type = 'table'";
+            } elseif (preg_match('/^\s*SHOW\s+TABLES\s+LIKE\s+(.+)$/i', trim($sql), $show)) {
                 $sql = "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE " . $show[1];
             } elseif (preg_match('/^\s*SHOW\s+TABLES\s+LIKE\s+\?\s*$/i', trim($sql))) {
                 $sql = "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE ?";
+            } elseif (preg_match('/^\s*SHOW\s+COLUMNS\s+FROM\s+`?([a-zA-Z0-9_]+)`?\s*$/i', trim($sql), $columns)) {
+                $sql = "PRAGMA table_info(`" . $columns[1] . "`)";
+                // The existing test reads MySQL's Field key; alias SQLite's name.
+                $sql = "SELECT name AS Field, name FROM pragma_table_info('" . $columns[1] . "')";
             }
             $sql = preg_replace('/information_schema\.tables/i', 'sqlite_master', $sql) ?? $sql;
             $sql = preg_replace('/table_schema\s*=\s*DATABASE\(\)\s+AND\s+/i', '', $sql) ?? $sql;

@@ -30,6 +30,11 @@ final class Mcp
 
     public static function ensureSchema(): void
     {
+        if (getenv('SLATE_TEST_SQLITE') === '1') {
+            Database::query("CREATE TABLE IF NOT EXISTS mcp_tokens (id INTEGER PRIMARY KEY AUTOINCREMENT, tenant_id INTEGER NOT NULL, token_hash TEXT NOT NULL, token_prefix TEXT NOT NULL, created_by INTEGER NULL, created_at TEXT NOT NULL, last_used_at TEXT NULL, revoked_at TEXT NULL, UNIQUE(token_hash))");
+            Database::query("CREATE TABLE IF NOT EXISTS mcp_confirmations (id INTEGER PRIMARY KEY AUTOINCREMENT, tenant_id INTEGER NOT NULL, token_hash TEXT NOT NULL, operation_hash TEXT NOT NULL, expires_at TEXT NOT NULL, used_at TEXT NULL, created_at TEXT NOT NULL)");
+            return;
+        }
         Database::query("CREATE TABLE IF NOT EXISTS mcp_tokens (id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, tenant_id BIGINT UNSIGNED NOT NULL, token_hash VARCHAR(255) NOT NULL, token_prefix VARCHAR(16) NOT NULL, created_by BIGINT UNSIGNED NULL, created_at DATETIME NOT NULL, last_used_at DATETIME NULL, revoked_at DATETIME NULL, PRIMARY KEY (id), KEY idx_mcp_tokens_tenant (tenant_id, revoked_at), UNIQUE KEY uq_mcp_tokens_hash (token_hash)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
         Database::query("CREATE TABLE IF NOT EXISTS mcp_confirmations (id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, tenant_id BIGINT UNSIGNED NOT NULL, token_hash VARCHAR(255) NOT NULL, operation_hash CHAR(64) NOT NULL, expires_at DATETIME NOT NULL, used_at DATETIME NULL, created_at DATETIME NOT NULL, PRIMARY KEY (id), KEY idx_mcp_confirmations_lookup (tenant_id, operation_hash, used_at, expires_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     }
@@ -127,9 +132,10 @@ final class Mcp
         if ($action === 'test') return ['ok' => true, 'resource' => $table, 'count' => (int)Database::value("SELECT COUNT(*) FROM `$table` WHERE $scope", $params)];
         if (in_array($action, ['read', 'list'], true)) {
             $limit = min(max((int)($payload['limit'] ?? 50), 1), 200); $where = [$scope];
-            if (!empty($payload['id'])) { $where[] = 'id = ?'; $params[] = (int)$payload['id']; }
+            if (!empty($payload['id']) && in_array('id', $columns, true)) { $where[] = 'id = ?'; $params[] = (int)$payload['id']; }
             foreach (($payload['filters'] ?? []) as $key => $value) { if (is_string($key) && in_array($key, $columns, true) && !self::redacted($key)) { $where[] = "`$key` = ?"; $params[] = is_scalar($value) ? $value : json_encode($value); } }
-            $rows = Database::rows("SELECT * FROM `$table` WHERE " . implode(' AND ', $where) . " ORDER BY id DESC LIMIT $limit", $params);
+            $order = in_array('id', $columns, true) ? ' ORDER BY id DESC' : '';
+            $rows = Database::rows("SELECT * FROM `$table` WHERE " . implode(' AND ', $where) . $order . " LIMIT $limit", $params);
             return ['ok' => true, 'resource' => $table, 'items' => array_map([self::class, 'redactRow'], $rows), 'count' => count($rows)];
         }
         if ($action === 'write' && !empty($payload['id'])) $action = 'edit';
@@ -149,6 +155,10 @@ final class Mcp
 
     private static function columns(string $table): array
     {
+        if (getenv('SLATE_TEST_SQLITE') === '1') {
+            $safe = preg_replace('/[^a-zA-Z0-9_]/', '', $table);
+            return array_map(static fn(array $row): string => (string)$row['name'], Database::rows("PRAGMA table_info(`$safe`)") );
+        }
         return array_map(static fn(array $row): string => (string)$row['Field'], Database::rows("SHOW COLUMNS FROM `$table`"));
     }
     private static function tenantScope(string $table, array $columns, int $tenantId, array &$params): string

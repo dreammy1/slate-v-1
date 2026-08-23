@@ -52,6 +52,7 @@ foreach ($files as $file) {
 $pdo->exec("INSERT OR IGNORE INTO tenants (id, name, slug, status) VALUES (1, 'SQLite Test Tenant', 'sqlite-test', 'active')");
 $pdo->exec("INSERT OR IGNORE INTO roles (id, tenant_id, name, slug, is_system) VALUES (1, 1, 'Super Admin', 'super-admin', 1)");
 $pdo->exec("INSERT OR IGNORE INTO users (id, tenant_id, email, password_hash, name, role_id, status) VALUES (1, 1, 'sqlite@example.test', 'not-used', 'SQLite Test', 1, 'active')");
+$pdo->exec("CREATE TABLE IF NOT EXISTS login_attempts (id INTEGER PRIMARY KEY AUTOINCREMENT, tenant_id INTEGER NOT NULL DEFAULT 1, scope TEXT NOT NULL, ip TEXT NOT NULL, identifier TEXT NOT NULL DEFAULT '', attempted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
 
 foreach (glob(SLATE_ROOT . '/plugins/*/plugin.json') ?: [] as $manifestFile) {
     $manifest = json_decode((string)file_get_contents($manifestFile), true) ?: [];
