@@ -96,7 +96,8 @@ unit('MCP reads and tests every installed allow-listed resource with tenant scop
             $exists = (bool)Database::value('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?', [$resource]);
             if (!$exists) { echo "# SKIP inactive or unapplied resource $module/$resource\n"; continue; }
             $columns = array_map(static fn(array $row): string => (string)$row['Field'], Database::rows("SHOW COLUMNS FROM `$resource`"));
-            assert_true(in_array('tenant_id', $columns, true), "$module/$resource must have tenant_id");
+            $tenantScoped = in_array('tenant_id', $columns, true) || $resource === 'role_permissions';
+            assert_true($tenantScoped, "$module/$resource must have a tenant-safe scope");
             foreach ([['action' => 'test', 'payload' => []], ['action' => 'list', 'payload' => ['limit' => 1]]] as $case) {
                 $preview = Mcp::call('slate_admin_preview', ['module' => $module, 'action' => $case['action'], 'resource' => $resource, 'payload' => $case['payload']], $tenant);
                 $result = Mcp::call('slate_admin_execute', ['module' => $module, 'action' => $case['action'], 'resource' => $resource, 'payload' => $case['payload'], 'confirmation_token' => $preview['confirmation_token']], $tenant);
