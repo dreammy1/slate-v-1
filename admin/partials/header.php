@@ -81,6 +81,15 @@ $coreNav = [
         'order' => 20,
         'group'  => 'overview',
     ],
+    [
+        'slug'  => 'development-progress',
+        'label' => 'Development Progress',
+        'href'  => SLATE_URL . '/admin/development_progress.php',
+        'icon'  => 'activity',
+        'perm'  => 'settings.view',
+        'order' => 30,
+        'group'  => 'overview',
+    ],
     // DEPRECATED: the legacy core Contact Forms are superseded by the Forms
     // plugin (public /forms/<slug>, webhooks, e-sign, PDF, conditional logic).
     // The nav item is hidden so admins use the plugin; the page, the
@@ -197,6 +206,7 @@ if (!$currentNav) {
     $map = [
             'index.php'         => 'dashboard',
             'growth_lab.php'    => 'growth-lab',
+            'development_progress.php' => 'development-progress',
             'media.php'         => 'media',
         'plugins.php'       => 'plugins',
         'users.php'         => 'users',
@@ -342,7 +352,8 @@ if (!function_exists('slate_admin_nav_icon')) {
             'settings'       => '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
             'star'           => '<path d="M12 2l3 7 7 .8-5.4 4.8L18 22l-6-3.5L6 22l1.4-7.4L2 9.8 9 9l3-7z"/>',
             'life-buoy'      => '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.6"/><path d="M5.6 5.6l3.3 3.3M15.1 15.1l3.3 3.3M18.4 5.6l-3.3 3.3M8.9 15.1l-3.3 3.3"/>',
-            'sparkles'       => '<path d="M12 3l1.3 4.7L18 9l-4.7 1.3L12 15l-1.3-4.7L6 9l4.7-1.3L12 3z"/><path d="M19 15l.7 2.3L22 18l-2.3.7L19 21l-.7-2.3L16 18l2.3-.7L19 15z"/>',
+            'sparkles'       => '<path d="M12 3l1.3 4.7L18 9l-4.7 1.3L12 15l-1.3-4.7L6 9l4.7-1.3L12 3z"/><path d="M19 15l.7 2.3L22 18l-.7-2.3L16 18l2.3.7L19 21l.7-2.3L22 18z"/>',
+            'activity'       => '<polyline points="3 12 7 12 10 4 14 20 17 12 21 12"/>',
             'help-circle'    => '<circle cx="12" cy="12" r="9"/><path d="M9.1 9a3 3 0 1 1 4.6 2.5c-.9.6-1.7 1.1-1.7 2.2"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
             'circle'         => '<circle cx="12" cy="12" r="9"/>',
             'logout'         => '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
