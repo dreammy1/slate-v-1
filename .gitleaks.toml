@@ -1,0 +1,11 @@
+title = "Slate secret scanning policy"
+
+[allowlist]
+description = "Non-secret MCP authorization placeholders used only in instructional UI and documentation"
+regexes = [
+  '''(?i)Bearer\s+(?:YOUR_TOKEN|<your-token>)'''
+]
+paths = [
+  '''^admin/mcp\.php$''',
+  '''^docs/MCP\.md$'''
+]

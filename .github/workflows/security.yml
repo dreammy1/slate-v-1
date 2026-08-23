@@ -104,5 +104,7 @@ jobs:
           fetch-depth: 0
       - name: Scan repository with Gitleaks
         uses: gitleaks/gitleaks-action@v3
+        with:
+          config: .gitleaks.toml
         env:
           GITHUB_TOKEN: ${{ github.token }}
