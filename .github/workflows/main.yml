@@ -136,6 +136,8 @@ jobs:
       - name: Initialize the CI database
         run: |
           mysql --protocol=tcp -h 127.0.0.1 -uroot -proot slate_test < db/schema.sql
+          mysql --protocol=tcp -h 127.0.0.1 -uroot -proot slate_test < plugins/content-builder/install.sql
+          mysql --protocol=tcp -h 127.0.0.1 -uroot -proot slate_test -e "INSERT INTO plugins (slug, name, version, status, manifest_json) VALUES ('content-builder', 'Content Builder', '1.6.1', 'active', '{\"slug\":\"content-builder\",\"name\":\"Content Builder\",\"version\":\"1.6.1\"}') ON DUPLICATE KEY UPDATE status='active', version='1.6.1', manifest_json=VALUES(manifest_json);"
 
       - name: Run Slate test suite
         run: bash tests/run.sh
