@@ -367,10 +367,11 @@ jobs:
     if: ${{ needs.package.result == 'success' && (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.deployment_mode == 'deploy' && inputs.deployment_target == 'production')) }}
     environment: production
     env:
-      PRODUCTION_HOST: ${{ secrets.PRODUCTION_HOST }}
-      PRODUCTION_USER: ${{ secrets.PRODUCTION_USER }}
-      PRODUCTION_PATH: ${{ secrets.PRODUCTION_PATH }}
-      PRODUCTION_SSH_KEY: ${{ secrets.PRODUCTION_SSH_KEY }}
+      PRODUCTION_FTPS_HOST: ${{ secrets.PRODUCTION_FTPS_HOST }}
+      PRODUCTION_FTPS_USER: ${{ secrets.PRODUCTION_FTPS_USER }}
+      PRODUCTION_FTPS_PASSWORD: ${{ secrets.PRODUCTION_FTPS_PASSWORD }}
+      PRODUCTION_FTPS_PORT: ${{ secrets.PRODUCTION_FTPS_PORT || '21' }}
+      PRODUCTION_FTPS_SERVER_DIR: ${{ secrets.PRODUCTION_FTPS_SERVER_DIR || './' }}
       DEPLOY_ALERT_WEBHOOK: ${{ secrets.DEPLOY_ALERT_WEBHOOK }}
       DEPLOY_MAX_SECONDS: ${{ vars.DEPLOY_MAX_SECONDS || '600' }}
     steps:
@@ -379,24 +380,25 @@ jobs:
         with:
           name: slate-release-${{ github.ref_name }}
           path: dist
-      - name: Check production deployment configuration
-        id: production-config
+      - name: Check production FTPS configuration
+        id: production-ftps-config
+        if: github.event_name != 'workflow_dispatch' || inputs.deployment_mode == 'deploy'
         shell: bash
         run: |
           set -euo pipefail
           missing=0
-          for variable in PRODUCTION_HOST PRODUCTION_USER PRODUCTION_PATH PRODUCTION_SSH_KEY; do
+          for variable in PRODUCTION_FTPS_HOST PRODUCTION_FTPS_USER PRODUCTION_FTPS_PASSWORD PRODUCTION_FTPS_PORT PRODUCTION_FTPS_SERVER_DIR; do
             if [ -z "${!variable:-}" ]; then
-              echo "::error::Required production deployment secret is missing: ${variable}"
+              echo "::error::Required production FTPS secret is missing: ${variable}"
               missing=1
             fi
           done
           if [ "$missing" -ne 0 ]; then
-            echo 'Production deployment preflight failed; no server connection was attempted.' >> "$GITHUB_STEP_SUMMARY"
+            echo 'Production FTPS preflight failed; no server connection was attempted.' >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
           echo 'configured=true' >> "$GITHUB_OUTPUT"
-          echo 'Production deployment preflight passed; required values are present.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Production FTPS preflight passed; required values are present.' >> "$GITHUB_STEP_SUMMARY"
 
       - name: Verify production artifact in dry-run mode
         if: github.event_name == 'workflow_dispatch' && inputs.deployment_mode == 'dry-run'
@@ -406,31 +408,49 @@ jobs:
           test -s dist/*.zip
           echo 'Production dry-run passed; no server connection was attempted.' >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Deploy over SSH with rsync
-        if: (github.event_name != 'workflow_dispatch' || inputs.deployment_mode == 'deploy') && steps.production-config.outputs.configured == 'true'
+      - name: Extract production artifact
+        if: (github.event_name != 'workflow_dispatch' || inputs.deployment_mode == 'deploy') && steps.production-ftps-config.outputs.configured == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$PRODUCTION_HOST" && test -n "$PRODUCTION_USER" && test -n "$PRODUCTION_PATH" && test -n "$PRODUCTION_SSH_KEY"
-          start_time=$(date +%s)
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "$PRODUCTION_SSH_KEY" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H "$PRODUCTION_HOST" >> ~/.ssh/known_hosts
           rm -rf /tmp/slate-production
           mkdir -p /tmp/slate-production
           unzip -q dist/*.zip -d /tmp/slate-production
-          rsync -az --delete -e 'ssh -i ~/.ssh/id_ed25519' /tmp/slate-production/slate/ "$PRODUCTION_USER@$PRODUCTION_HOST:$PRODUCTION_PATH/"
-          duration=$(( $(date +%s) - start_time ))
-          echo "### Production deployment telemetry\n- Duration: ${duration}s\n- Threshold: ${DEPLOY_MAX_SECONDS}s" >> "$GITHUB_STEP_SUMMARY"
-          if [ "$duration" -gt "$DEPLOY_MAX_SECONDS" ]; then
-            echo "::warning title=Slow production deployment::Deployment took ${duration}s (threshold: ${DEPLOY_MAX_SECONDS}s)"
-            if [ -n "$DEPLOY_ALERT_WEBHOOK" ]; then
-              curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' \
-                --data "{\"text\":\"Slate production deployment was slow: ${duration}s (threshold ${DEPLOY_MAX_SECONDS}s), run ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\"}" \
-                "$DEPLOY_ALERT_WEBHOOK" || echo 'Slow-deployment alert could not be delivered.'
-            fi
-          fi
+
+      - name: Deploy over explicit FTPS
+        if: (github.event_name != 'workflow_dispatch' || inputs.deployment_mode == 'deploy') && steps.production-ftps-config.outputs.configured == 'true'
+        uses: SamKirkland/FTP-Deploy-Action@v4.4.0
+        with:
+          server: ${{ env.PRODUCTION_FTPS_HOST }}
+          username: ${{ env.PRODUCTION_FTPS_USER }}
+          password: ${{ env.PRODUCTION_FTPS_PASSWORD }}
+          protocol: ftps
+          port: ${{ env.PRODUCTION_FTPS_PORT }}
+          security: strict
+          local-dir: /tmp/slate-production/slate/
+          server-dir: ${{ env.PRODUCTION_FTPS_SERVER_DIR }}
+          state-name: .slate-ftp-deploy-sync-state.json
+          log-level: minimal
+          exclude: |
+            **/.git*
+            **/.github/**
+            **/.env
+            **/.env.*
+            **/tests/**
+            **/uploads/**
+            **/*.log
+            **/error_log
+            **/*.bak
+            **/node_modules/**
+            **/dist/**
+            **/plugins/_dist/**
+
+      - name: Record production FTPS telemetry
+        if: success() && (github.event_name != 'workflow_dispatch' || inputs.deployment_mode == 'deploy')
+        run: |
+          echo '### Production deployment telemetry' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Transport: Explicit FTPS' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Server connection completed through the FTPS deployment action.' >> "$GITHUB_STEP_SUMMARY"
 
       - name: Alert on production deployment failure
         if: failure() && env.DEPLOY_ALERT_WEBHOOK != ''
