@@ -121,11 +121,12 @@ final class Mcp
     private static function execute(array $op, int $tenantId): array
     {
         $table = $op['resource']; $columns = self::columns($table);
-        if (!in_array('tenant_id', $columns, true)) throw new RuntimeException('This resource has no tenant_id and is unavailable to the tenant-scoped MCP adapter.');
         $action = $op['action']; $payload = $op['arguments']['payload'];
-        if ($action === 'test') return ['ok' => true, 'resource' => $table, 'count' => (int)Database::value("SELECT COUNT(*) FROM `$table` WHERE tenant_id = ?", [$tenantId])];
+        $params = [];
+        $scope = self::tenantScope($table, $columns, $tenantId, $params);
+        if ($action === 'test') return ['ok' => true, 'resource' => $table, 'count' => (int)Database::value("SELECT COUNT(*) FROM `$table` WHERE $scope", $params)];
         if (in_array($action, ['read', 'list'], true)) {
-            $limit = min(max((int)($payload['limit'] ?? 50), 1), 200); $where = ['tenant_id = ?']; $params = [$tenantId];
+            $limit = min(max((int)($payload['limit'] ?? 50), 1), 200); $where = [$scope];
             if (!empty($payload['id'])) { $where[] = 'id = ?'; $params[] = (int)$payload['id']; }
             foreach (($payload['filters'] ?? []) as $key => $value) { if (is_string($key) && in_array($key, $columns, true) && !self::redacted($key)) { $where[] = "`$key` = ?"; $params[] = is_scalar($value) ? $value : json_encode($value); } }
             $rows = Database::rows("SELECT * FROM `$table` WHERE " . implode(' AND ', $where) . " ORDER BY id DESC LIMIT $limit", $params);
@@ -135,15 +136,26 @@ final class Mcp
         $safe = [];
         foreach ($payload as $key => $value) if (is_string($key) && in_array($key, $columns, true) && !in_array($key, ['id', 'tenant_id', 'created_at', 'updated_at'], true) && !self::redacted($key)) $safe[$key] = is_array($value) ? json_encode($value, JSON_UNESCAPED_UNICODE) : $value;
         if (!$safe && $action !== 'delete') throw new InvalidArgumentException('No writable allow-listed fields were supplied.');
-        if (in_array($action, ['create', 'write'], true)) { $safe['tenant_id'] = $tenantId; $id = Database::insert($table, $safe); return ['ok' => true, 'action' => 'create', 'resource' => $table, 'id' => $id]; }
-        if ($action === 'edit') { unset($safe['tenant_id']); $changed = Database::update($table, $safe, 'id = ? AND tenant_id = ?', [(int)$payload['id'], $tenantId]); return ['ok' => true, 'action' => 'edit', 'resource' => $table, 'id' => (int)$payload['id'], 'changed' => $changed]; }
-        if ($action === 'delete') { $deleted = Database::delete($table, 'id = ? AND tenant_id = ?', [(int)$payload['id'], $tenantId]); return ['ok' => true, 'action' => 'delete', 'resource' => $table, 'id' => (int)$payload['id'], 'deleted' => $deleted]; }
+        if (in_array($action, ['create', 'write'], true)) {
+            if (in_array('tenant_id', $columns, true)) $safe['tenant_id'] = $tenantId;
+            elseif ($table === 'role_permissions') { if (empty($safe['role_id']) || !Database::value('SELECT id FROM roles WHERE id = ? AND tenant_id = ?', [(int)$safe['role_id'], $tenantId])) throw new InvalidArgumentException('role_id must belong to the current tenant.'); }
+            else throw new RuntimeException('This resource has no safe tenant scope.');
+            $id = Database::insert($table, $safe); return ['ok' => true, 'action' => 'create', 'resource' => $table, 'id' => $id];
+        }
+        if ($action === 'edit') { unset($safe['tenant_id']); $changed = Database::update($table, $safe, 'id = ? AND ' . $scope, array_merge([(int)$payload['id']], $params)); return ['ok' => true, 'action' => 'edit', 'resource' => $table, 'id' => (int)$payload['id'], 'changed' => $changed]; }
+        if ($action === 'delete') { $deleted = Database::delete($table, 'id = ? AND ' . $scope, array_merge([(int)$payload['id']], $params)); return ['ok' => true, 'action' => 'delete', 'resource' => $table, 'id' => (int)$payload['id'], 'deleted' => $deleted]; }
         throw new InvalidArgumentException('Unsupported resource action.');
     }
 
     private static function columns(string $table): array
     {
         return array_map(static fn(array $row): string => (string)$row['Field'], Database::rows("SHOW COLUMNS FROM `$table`"));
+    }
+    private static function tenantScope(string $table, array $columns, int $tenantId, array &$params): string
+    {
+        if (in_array('tenant_id', $columns, true)) { $params[] = $tenantId; return 'tenant_id = ?'; }
+        if ($table === 'role_permissions') { $params[] = $tenantId; return 'role_id IN (SELECT id FROM roles WHERE tenant_id = ?)'; }
+        throw new RuntimeException('This resource has no safe tenant scope.');
     }
     private static function redacted(string $key): bool { $key = strtolower($key); foreach (self::REDACTED_COLUMNS as $needle) if (str_contains($key, $needle)) return true; return false; }
     private static function redactRow(array $row): array { foreach (array_keys($row) as $key) if (self::redacted((string)$key)) $row[$key] = '[REDACTED]'; return $row; }

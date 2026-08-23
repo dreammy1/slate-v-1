@@ -63,7 +63,9 @@ unit('MCP settings adapter supports read, create, edit, write, and delete with o
         $id = (int)Database::value('SELECT id FROM settings WHERE tenant_id = ? AND setting_key = ? ORDER BY id DESC LIMIT 1', [$tenant, $key]);
         assert_true($id > 0);
 
-        $read = Mcp::call('slate_admin_execute', ['module' => 'settings', 'action' => 'read', 'resource' => 'settings', 'payload' => ['id' => $id]], $tenant);
+        $readPayload = ['id' => $id];
+        $readPreview = Mcp::call('slate_admin_preview', ['module' => 'settings', 'action' => 'read', 'resource' => 'settings', 'payload' => $readPayload], $tenant);
+        $read = Mcp::call('slate_admin_execute', ['module' => 'settings', 'action' => 'read', 'resource' => 'settings', 'payload' => $readPayload, 'confirmation_token' => $readPreview['confirmation_token']], $tenant);
         assert_true($read['ok'] === true && count($read['items']) === 1);
 
         $editPayload = ['id' => $id, 'setting_value' => 'two'];
