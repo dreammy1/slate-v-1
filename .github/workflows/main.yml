@@ -307,6 +307,18 @@ jobs:
         with:
           name: slate-release-${{ github.ref_name }}
           path: dist
+      - name: Check staging deployment configuration
+        id: staging-config
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "$STAGING_HOST" ] && [ -n "$STAGING_USER" ] && [ -n "$STAGING_PATH" ] && [ -n "$STAGING_SSH_KEY" ]; then
+            echo 'configured=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'configured=false' >> "$GITHUB_OUTPUT"
+            echo 'Staging server credentials are not configured; deployment was not attempted.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Verify staging artifact in dry-run mode
         if: github.event_name == 'workflow_dispatch' && inputs.deployment_mode == 'dry-run'
         run: |
@@ -316,7 +328,7 @@ jobs:
           echo 'Staging dry-run passed; no server connection was attempted.' >> "$GITHUB_STEP_SUMMARY"
 
       - name: Deploy over SSH with rsync
-        if: github.event_name != 'workflow_dispatch' || inputs.deployment_mode == 'deploy'
+        if: (github.event_name != 'workflow_dispatch' || inputs.deployment_mode == 'deploy') && steps.staging-config.outputs.configured == 'true'
         shell: bash
         run: |
           set -euo pipefail
