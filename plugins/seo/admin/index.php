@@ -1,6 +1,6 @@
 <?php
 /**
- * SEO — site-wide settings.
+ * SEO — tenant-wide control plane.
  */
 require_once dirname(__DIR__, 3) . '/config.php';
 
@@ -9,79 +9,40 @@ Auth::requirePerm('seo.manage');
 
 $pageTitle  = 'SEO';
 $currentNav = 'seo-settings';
-
 $flash = null;
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!csrf_verify()) {
         $flash = ['type'=>'error','msg'=>'Security check failed.'];
     } else {
-        SEOAPI::setSetting('site_name',           trim($_POST['site_name'] ?? ''));
-        SEOAPI::setSetting('title_suffix',        trim($_POST['title_suffix'] ?? ''));
-        SEOAPI::setSetting('default_description', trim($_POST['default_description'] ?? ''));
-        $flash = ['type'=>'success','msg'=>'Settings saved.'];
+        [$clean, $errors] = SEOAPI::validateSettings($_POST);
+        if ($errors) {
+            $flash = ['type'=>'error','msg'=>'Please correct the highlighted URL or policy fields.'];
+        } else {
+            foreach ($clean as $key => $value) SEOAPI::setSetting($key, $value);
+            if (class_exists('AuditLog')) AuditLog::record('seo.settings_updated', 'global');
+            $flash = ['type'=>'success','msg'=>'SEO control-plane settings saved.'];
+        }
     }
 }
 
 $s = SEOAPI::allSettings();
 $cbActive = class_exists('ContentBuilderAPI');
-
 require SLATE_ROOT . '/admin/partials/header.php';
 ?>
-
-<?php slate_breadcrumbs([
-    ['label' => 'Dashboard', 'href' => SLATE_URL . '/admin/'],
-    ['label' => 'SEO'],
-]); ?>
-
-<div class="page-header">
-    <div><h1>SEO settings</h1>
-    <p class="page-header-sub">Site-wide defaults. Per-page overrides live in each page's editor sidebar.</p></div>
-</div>
-
-<?php if ($flash): ?>
-    <div class="alert alert-<?= e($flash['type']) ?>" role="status"><?= e($flash['msg']) ?></div>
-<?php endif; ?>
-
-<?php if (!$cbActive): ?>
-    <div class="alert alert-info" role="status">
-        Content Builder isn't active. SEO settings still save, but per-page meta
-        fields and rendered tags only appear once Content Builder is enabled.
-    </div>
-<?php endif; ?>
-
-<div class="card">
-    <div class="card-header"><h2>Defaults</h2></div>
-    <form method="post">
-        <?= csrf_field() ?>
-        <div class="field">
-            <label class="field-label" for="site_name">Site name</label>
-            <input type="text" id="site_name" name="site_name"
-                   value="<?= e($s['site_name'] ?? '') ?>" placeholder="Chef Gregory's">
-        </div>
-        <div class="field">
-            <label class="field-label" for="title_suffix">Title suffix</label>
-            <input type="text" id="title_suffix" name="title_suffix"
-                   value="<?= e($s['title_suffix'] ?? '') ?>" placeholder="— Chef Gregory's">
-            <small class="text-muted">Appended to every page title when not already present.</small>
-        </div>
-        <div class="field">
-            <label class="field-label" for="default_description">Default meta description</label>
-            <textarea id="default_description" name="default_description" rows="3"
-                      class="field-input" placeholder="Used when a page has no description of its own"><?= e($s['default_description'] ?? '') ?></textarea>
-        </div>
-        <button type="submit" class="btn btn-primary">Save settings</button>
-    </form>
-</div>
-
-<div class="card">
-    <div class="card-header"><h2>How per-page SEO works</h2></div>
-    <p class="text-sub">
-        When Content Builder is active, this plugin adds an <strong>SEO</strong>
-        card to every page/post editor (meta title, description, canonical, social
-        image, noindex). Those values are stored as post meta and rendered into the
-        page <code>&lt;head&gt;</code> via the <code>content_head_tags</code> hook —
-        no template edits required.
-    </p>
-</div>
-
+<style>
+.seo-shell{max-width:1160px;margin:0 auto;padding-bottom:50px}.seo-hero{display:flex;justify-content:space-between;gap:24px;align-items:flex-end;padding:26px 28px;margin-bottom:18px;border:1px solid #dbeafe;border-radius:18px;background:radial-gradient(circle at 90% 0,#dbeafe 0,transparent 36%),linear-gradient(135deg,#f8fbff,#fff)}.seo-eyebrow,.seo-kicker{font-size:11px;text-transform:uppercase;letter-spacing:.12em;font-weight:800;color:#2563eb}.seo-hero h1{margin:8px 0;font-size:clamp(26px,4vw,38px);letter-spacing:-.045em}.seo-hero p{margin:0;max-width:680px;color:#64748b;line-height:1.6;font-size:14px}.seo-grid{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:18px}.seo-card{background:#fff;border:1px solid #e2e8f0;border-radius:15px;padding:22px;box-shadow:0 5px 20px rgba(15,23,42,.04);margin-bottom:18px}.seo-card h2{font-size:17px;margin:0 0 6px}.seo-muted{font-size:12px;color:#64748b;line-height:1.55}.seo-fields{display:grid;grid-template-columns:1fr 1fr;gap:0 15px}.seo-field{margin-top:15px}.seo-field.full{grid-column:1/-1}.seo-field label{display:block;font-size:12px;font-weight:800;color:#334155;margin-bottom:6px}.seo-field input,.seo-field textarea,.seo-field select{width:100%;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:9px;padding:10px 11px;color:#0f172a;background:#fff;font:inherit;font-size:13px}.seo-field textarea{resize:vertical;min-height:86px}.seo-field input:focus,.seo-field textarea:focus,.seo-field select:focus{outline:3px solid #dbeafe;border-color:#60a5fa}.seo-help{display:block;font-size:11px;color:#64748b;margin-top:5px;line-height:1.4}.seo-btn{margin-top:20px;border:0;border-radius:9px;padding:11px 16px;background:#2563eb;color:#fff;font-size:13px;font-weight:800;cursor:pointer}.seo-btn:hover{background:#1d4ed8}.seo-alert{padding:12px 14px;border-radius:10px;margin-bottom:18px;font-size:13px;font-weight:700}.seo-alert.success{background:#f0fdf4;color:#166534;border:1px solid #bbf7d0}.seo-alert.error{background:#fff1f2;color:#be123c;border:1px solid #fecdd3}.seo-preview{border:1px solid #e2e8f0;border-radius:12px;padding:15px;background:#f8fafc;margin-top:16px}.seo-preview-label{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#64748b;font-weight:800}.seo-preview-title{font-size:17px;color:#1d4ed8;margin-top:9px;line-height:1.25}.seo-preview-url{font-size:11px;color:#15803d;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.seo-preview-desc{font-size:12px;color:#475569;line-height:1.45;margin-top:6px}.seo-list{display:grid;gap:11px;margin-top:16px}.seo-list div{display:flex;gap:9px;align-items:flex-start;font-size:12px;line-height:1.45;color:#475569}.seo-list b{color:#16a34a}.seo-card-footer{border-top:1px solid #eef2f7;margin:20px -22px -22px;padding:14px 22px;color:#64748b;font-size:11px}@media(max-width:850px){.seo-grid{grid-template-columns:1fr}.seo-hero{display:block}.seo-fields{grid-template-columns:1fr}.seo-field.full{grid-column:auto}}
+</style>
+<main class="content"><div class="seo-shell">
+<section class="seo-hero"><div><div class="seo-eyebrow">SEO control plane</div><h1>Search-ready by default</h1><p>Set tenant-wide SEO rules once, then let page-level overrides and the active theme inherit safe defaults. The renderer emits metadata, canonical signals, social cards, robots policy, and structured data from the same source of truth.</p></div></section>
+<?php if ($flash): ?><div class="seo-alert <?= e($flash['type']) ?>" role="status"><?= e($flash['msg']) ?></div><?php endif; ?>
+<?php if (!$cbActive): ?><div class="seo-alert" style="background:#eff6ff;color:#1e3a8a;border:1px solid #bfdbfe" role="status">Content Builder is not active. Global SEO settings can still be saved; page-level fields become available when Content Builder is enabled.</div><?php endif; ?>
+<form method="post"><div class="seo-grid"><div>
+<section class="seo-card"><div class="seo-kicker">Global defaults</div><h2>Site identity and search snippets</h2><p class="seo-muted">These values apply when a page does not provide an explicit override.</p><div class="seo-fields"><div class="seo-field"><label for="site_name">Site name</label><input id="site_name" name="site_name" maxlength="120" value="<?= e($s['site_name'] ?? '') ?>" placeholder="Your business name"></div><div class="seo-field"><label for="title_suffix">Title suffix</label><input id="title_suffix" name="title_suffix" maxlength="120" value="<?= e($s['title_suffix'] ?? '') ?>" placeholder=" — Your brand"><span class="seo-help">Appended to titles when not already present.</span></div><div class="seo-field full"><label for="default_description">Default meta description</label><textarea id="default_description" name="default_description" maxlength="320" placeholder="A concise description of what this site offers."><?= e($s['default_description'] ?? '') ?></textarea><span class="seo-help">Aim for a useful summary, not a keyword list.</span></div><div class="seo-field"><label for="canonical_host">Canonical host</label><input id="canonical_host" type="url" name="canonical_host" value="<?= e($s['canonical_host'] ?? '') ?>" placeholder="https://example.com"><span class="seo-help">Used to build canonical URLs when a page has a slug.</span></div><div class="seo-field"><label for="default_og_image">Default social image</label><input id="default_og_image" type="url" name="default_og_image" value="<?= e($s['default_og_image'] ?? '') ?>" placeholder="https://example.com/social.jpg"></div></div></section>
+<section class="seo-card"><div class="seo-kicker">Structured data and indexing</div><h2>Organization and crawler policy</h2><p class="seo-muted">These values feed JSON-LD and the rendered robots policy. Use HTTPS URLs to keep the identity graph consistent.</p><div class="seo-fields"><div class="seo-field"><label for="organization_name">Organization name</label><input id="organization_name" name="organization_name" maxlength="160" value="<?= e($s['organization_name'] ?? '') ?>" placeholder="Your legal or public name"></div><div class="seo-field"><label for="locale">Locale</label><input id="locale" name="locale" maxlength="10" value="<?= e($s['locale'] ?? 'en_US') ?>" placeholder="en_US"><span class="seo-help">Example: en_US, en_GB, or bn_BD.</span></div><div class="seo-field"><label for="organization_url">Organization URL</label><input id="organization_url" type="url" name="organization_url" value="<?= e($s['organization_url'] ?? '') ?>" placeholder="https://example.com"></div><div class="seo-field"><label for="organization_logo">Organization logo URL</label><input id="organization_logo" type="url" name="organization_logo" value="<?= e($s['organization_logo'] ?? '') ?>" placeholder="https://example.com/logo.png"></div><div class="seo-field"><label for="robots_default">Default robots policy</label><select id="robots_default" name="robots_default"><option value="index,follow" <?= ($s['robots_default'] ?? 'index,follow') === 'index,follow' ? 'selected' : '' ?>>Index and follow</option><option value="noindex,follow" <?= ($s['robots_default'] ?? '') === 'noindex,follow' ? 'selected' : '' ?>>Noindex, follow links</option><option value="noindex,nofollow" <?= ($s['robots_default'] ?? '') === 'noindex,nofollow' ? 'selected' : '' ?>>Noindex and nofollow</option></select></div><div class="seo-field"><label for="social_twitter">Social handle</label><input id="social_twitter" name="social_twitter" maxlength="80" value="<?= e($s['social_twitter'] ?? '') ?>" placeholder="@yourbrand"></div></div><button class="seo-btn" type="submit"><?= csrf_field() ?>Save SEO settings</button><div class="seo-card-footer">Changes are tenant-scoped and recorded in the audit log. Page-level overrides continue to live in the Content Builder editor.</div></section>
+</div><aside><section class="seo-card"><div class="seo-kicker">Live preview</div><h2>Search result preview</h2><p class="seo-muted">A directional preview for title, canonical host, and default description.</p><div class="seo-preview"><div class="seo-preview-label">Google-style preview</div><div class="seo-preview-title" id="seo-preview-title">Your page title</div><div class="seo-preview-url" id="seo-preview-url">https://example.com/your-page</div><div class="seo-preview-desc" id="seo-preview-desc">Your default description will appear here.</div></div></section><section class="seo-card"><div class="seo-kicker">Checks included</div><h2>Publishing guardrails</h2><div class="seo-list"><div><b>✓</b><span>Deterministic metadata fallback and override precedence</span></div><div><b>✓</b><span>Canonical, robots, Open Graph, Twitter, and locale output</span></div><div><b>✓</b><span>WebPage, WebSite, and Organization JSON-LD</span></div><div><b>✓</b><span>HTTPS URL validation and tenant-scoped settings</span></div><div><b>✓</b><span>Audit event on successful global setting changes</span></div></div></section></aside></div></form>
+</div></main>
+<script>
+(function(){var q=function(id){return document.getElementById(id)}, name=q('site_name'), suffix=q('title_suffix'), host=q('canonical_host'), desc=q('default_description'), title=q('seo-preview-title'), url=q('seo-preview-url'), copy=function(v){return (v||'').trim()};function render(){var t=copy(name.value)||'Your page title';var s=copy(suffix.value);title.textContent=t+(s&&t.toLowerCase().indexOf(s.toLowerCase())===-1?' '+s:'');url.textContent=(copy(host.value)||'https://example.com')+'/your-page';desc.textContent=copy(desc.value)||'Your default description will appear here.'} [name,suffix,host,desc].forEach(function(el){el&&el.addEventListener('input',render)});render()})();
+</script>
 <?php require SLATE_ROOT . '/admin/partials/footer.php'; ?>

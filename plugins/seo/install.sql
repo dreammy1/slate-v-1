@@ -13,4 +13,12 @@ CREATE TABLE IF NOT EXISTS `seo_settings` (
 INSERT IGNORE INTO `seo_settings` (tenant_id, setting_key, setting_val) VALUES
     (1, 'site_name', ''),
     (1, 'title_suffix', ''),
-    (1, 'default_description', '');
+    (1, 'default_description', ''),
+    (1, 'canonical_host', ''),
+    (1, 'default_og_image', ''),
+    (1, 'locale', 'en_US'),
+    (1, 'robots_default', 'index,follow'),
+    (1, 'organization_name', ''),
+    (1, 'organization_url', ''),
+    (1, 'organization_logo', ''),
+    (1, 'social_twitter', '');

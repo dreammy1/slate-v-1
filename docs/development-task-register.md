@@ -32,9 +32,9 @@ A phase is complete only when its implementation, tests, security checks, docume
 
 | ID | Task | Parallel lane | Depends on | Acceptance evidence | Status |
 |---|---|---|---|---|---|
-| C-01 | Audit Content Builder, SEO, public router, Template Engine, Theme Engine, Asset Manager, tenancy, hooks, and migrations | Architecture | — | Audit note with extension points and compatibility risks | In progress |
+| C-01 | Audit Content Builder, SEO, public router, Template Engine, Theme Engine, Asset Manager, tenancy, hooks, and migrations | Architecture | — | Audit note with extension points and compatibility risks | Complete |
 | C-02 | Define versioned page document schema and node identity rules | Data model | C-01 | Schema document plus JSON fixtures | Not started |
-| C-03 | Define theme/template/page/block/global-part boundaries | Platform contracts | C-01 | Contract interfaces and lifecycle diagram | Not started |
+| C-03 | Define theme/template/page/block/global-part boundaries | Platform contracts | C-01 | Contract interfaces and lifecycle diagram | In progress |
 | C-04 | Define HTML/CSS/asset security policy | Security | C-01 | Sanitization allowlist, quarantine rules, threat cases | Not started |
 | C-05 | Define event taxonomy for page, SEO, asset, form, booking, payment, and portal events | Platform events | C-01 | Event names, payloads, tenant scope, idempotency rules | Not started |
 
@@ -42,12 +42,14 @@ A phase is complete only when its implementation, tests, security checks, docume
 
 | ID | Task | Parallel lane | Depends on | Acceptance evidence | Status |
 |---|---|---|---|---|---|
-| SEO-01 | Add tenant-scoped global SEO settings and validation | Backend | C-01 | Migration, repository/service tests, settings UI | Not started |
-| SEO-02 | Implement precedence resolver: page → content type → global → fallback | Rendering | C-02 | Unit tests for every precedence branch | Not started |
-| SEO-03 | Add title, description, canonical, robots, social metadata output | Rendering | SEO-02 | Public HTML fixtures and snapshot checks | Not started |
+| SEO-01 | Add tenant-scoped global SEO settings and validation | Backend | C-01 | Migration, repository/service tests, settings UI | Complete* |
+| SEO-02 | Implement precedence resolver: page → content type → global → fallback | Rendering | C-02 | Unit tests for every precedence branch | Complete* |
+| SEO-03 | Add title, description, canonical, robots, social metadata output | Rendering | SEO-02 | Public HTML fixtures and snapshot checks | Complete* |
 | SEO-04 | Add JSON-LD schema graph for Organization, WebSite, WebPage, Breadcrumb, Article, Product, Service, Event, FAQ, and LocalBusiness | SEO | SEO-02 | Valid JSON-LD fixtures and warning states | Not started |
 | SEO-05 | Add sitemap, robots, redirects, and canonical conflict detection | SEO | SEO-02 | Route tests, loop tests, tenant isolation tests | Not started |
 | SEO-06 | Add SEO/accessibility/performance pre-publish validation | QA | SEO-03, C-04 | Validation report with blocking vs warning rules | Not started |
+
+*Complete in the current additive foundation batch; database-backed migration, structured fixtures, and full integration coverage remain release-gate work.*
 
 ## Phase 2 — Theme and template library · 20%
 
