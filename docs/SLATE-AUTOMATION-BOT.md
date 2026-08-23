@@ -24,10 +24,10 @@ The built-in `GITHUB_TOKEN` is supplied automatically by GitHub Actions and is u
 The workflow file is `.github/workflows/slate-monitor-bot.yml`. Its schedule is:
 
 ```cron
-0 */6 * * *
+0 3 * * *
 ```
 
-This runs at six-hour intervals in UTC. The workflow also supports `workflow_dispatch` for an immediate manual check. The existing Manus monitor may remain enabled; it is independent from this repository-native bot and should not be used to perform deployments.
+This runs once per day at 03:00 UTC. The workflow also supports `workflow_dispatch` for an immediate manual check. The existing Manus monitor may remain enabled; it is independent from this repository-native bot and should not be used to perform deployments.
 
 ## Daily summaries
 
