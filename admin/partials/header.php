@@ -99,6 +99,15 @@ $coreNav = [
         'order' => 40,
         'group'  => 'overview',
     ],
+    [
+        'slug'  => 'template-library',
+        'label' => 'Template Library',
+        'href'  => SLATE_URL . '/admin/template_library.php',
+        'icon'  => 'layers',
+        'perm'  => 'settings.view',
+        'order' => 50,
+        'group' => 'overview',
+    ],
     // DEPRECATED: the legacy core Contact Forms are superseded by the Forms
     // plugin (public /forms/<slug>, webhooks, e-sign, PDF, conditional logic).
     // The nav item is hidden so admins use the plugin; the page, the
@@ -217,6 +226,7 @@ if (!$currentNav) {
             'growth_lab.php'    => 'growth-lab',
             'development_progress.php' => 'development-progress',
             'visual_editor.php' => 'visual-editor',
+            'template_library.php' => 'template-library',
             'media.php'         => 'media',
         'plugins.php'       => 'plugins',
         'users.php'         => 'users',

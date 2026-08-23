@@ -30,6 +30,37 @@ $preview = !empty($_GET['preview']);
 
 $post = ContentBuilderAPI::getPostBySlug($type, $slug);
 
+// Tenant-selected reusable front-page template. Published template documents are
+// rendered through a small allow-listed serializer; legacy page content remains
+// the fallback when no active template is configured.
+if ($slug === 'home') {
+    $templateId = (int)Database::setting('front_page_template_id');
+    $templateVersion = (string)Database::setting('front_page_template_version');
+    if ($templateId > 0 && $templateVersion !== '') {
+        $version = Database::row('SELECT tv.definition, t.name FROM template_versions tv JOIN templates t ON t.id = tv.template_id WHERE tv.tenant_id = ? AND tv.template_id = ? AND tv.version = ? AND t.status = ?', [current_tenant_id(), $templateId, $templateVersion, 'active']);
+        $payload = $version ? json_decode((string)$version['definition'], true) : null;
+        $renderTemplate = static function (array $node) use (&$renderTemplate): string {
+            $allowed = ['div','section','header','footer','main','nav','article','aside','h1','h2','h3','p','a','button','img','ul','li','span'];
+            $tag = in_array(strtolower((string)($node['tag'] ?? 'div')), $allowed, true) ? strtolower((string)$node['tag']) : 'div';
+            $attrs = '';
+            foreach ((array)($node['attributes'] ?? []) as $key => $value) {
+                $key = preg_replace('/[^a-zA-Z0-9_:.-]/', '', (string)$key) ?? '';
+                if ($key === '' || str_starts_with(strtolower($key), 'on') || in_array(strtolower($key), ['style','srcdoc'], true)) continue;
+                $value = (string)$value; if (preg_match('/^(?:javascript|data):/i', $value)) continue;
+                $attrs .= ' ' . e($key) . '=\"' . e($value) . '\"';
+            }
+            $inner = trim((string)($node['text'] ?? '')) !== '' ? e((string)$node['text']) : implode('', array_map($renderTemplate, (array)($node['children'] ?? [])));
+            return '<' . $tag . $attrs . '>' . $inner . ($tag === 'img' ? '' : '</' . $tag . '>');
+        };
+        if (is_array($payload['document'] ?? null)) $payload = $payload['document'];
+        if (is_array($payload)) {
+            $body = implode('', array_map($renderTemplate, (array)($payload['children'] ?? [])));
+            echo Theme::renderPage('<title>' . e((string)$version['name']) . '</title>', '<main class=\"cb-page\">' . $body . '</main>', null);
+            return;
+        }
+    }
+}
+
 // Preview mode: allow viewing a draft, but only for logged-in users with
 // content.view. Everyone else gets the published-only behaviour.
 $canPreview = $preview && class_exists('Auth') && Auth::check() && Auth::can('content.view');
