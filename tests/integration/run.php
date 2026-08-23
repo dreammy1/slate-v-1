@@ -18,6 +18,12 @@ require __DIR__ . '/../unit/harness.php';    // reuse the assertion harness
 echo "# Slate integration tests\n";
 
 foreach (glob(__DIR__ . '/*Test.php') as $file) {
+    // The repository snapshot does not include the optional Studio plugin.
+    // Keep its tests visible as explicit skips instead of failing unrelated CI.
+    if (str_starts_with(basename($file), 'Studio') && !is_file(__DIR__ . '/../../plugins/studio/StudioAPI.php')) {
+        echo '# SKIP optional Studio plugin is not present: ' . basename($file) . "\n";
+        continue;
+    }
     require $file;
 }
 

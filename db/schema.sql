@@ -292,3 +292,98 @@ INSERT INTO `role_permissions` (`role_id`, `perm_key`, `granted`) VALUES
     (4, 'settings.view',    1),
     (4, 'media.view',       1)
 ON DUPLICATE KEY UPDATE `granted` = VALUES(`granted`);
+
+-- ── 13. Canonical contacts and identity services ───────────────
+-- Shared party records used by the newer identity service layer.
+CREATE TABLE IF NOT EXISTS `contacts` (
+    `id`             INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `tenant_id`      INT UNSIGNED NOT NULL DEFAULT 1,
+    `kind`           VARCHAR(32) NOT NULL DEFAULT 'person',
+    `display_name`   VARCHAR(190) NULL,
+    `primary_email`  VARCHAR(190) NULL,
+    `primary_phone`  VARCHAR(64) NULL,
+    `status`         VARCHAR(32) NOT NULL DEFAULT 'active',
+    `created_at`     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `tenant_status` (`tenant_id`, `status`),
+    KEY `tenant_email` (`tenant_id`, `primary_email`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `contact_emails` (
+    `id`          INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `tenant_id`   INT UNSIGNED NOT NULL DEFAULT 1,
+    `contact_id`  INT UNSIGNED NOT NULL,
+    `email`       VARCHAR(190) NOT NULL,
+    `is_primary`  TINYINT(1) NOT NULL DEFAULT 0,
+    `verified`    TINYINT(1) NOT NULL DEFAULT 0,
+    `created_at`  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `tenant_email` (`tenant_id`, `email`),
+    KEY `contact_id` (`contact_id`),
+    CONSTRAINT `fk_contact_emails_contact` FOREIGN KEY (`contact_id`) REFERENCES `contacts`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `contact_phones` (
+    `id`          INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `tenant_id`   INT UNSIGNED NOT NULL DEFAULT 1,
+    `contact_id`  INT UNSIGNED NOT NULL,
+    `phone`       VARCHAR(64) NOT NULL,
+    `is_primary`  TINYINT(1) NOT NULL DEFAULT 0,
+    `created_at`  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `tenant_phone` (`tenant_id`, `phone`),
+    KEY `contact_id` (`contact_id`),
+    CONSTRAINT `fk_contact_phones_contact` FOREIGN KEY (`contact_id`) REFERENCES `contacts`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `identities` (
+    `id`               INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `contact_id`       INT UNSIGNED NOT NULL,
+    `tenant_id`        INT UNSIGNED NOT NULL DEFAULT 1,
+    `provider`         VARCHAR(32) NOT NULL DEFAULT 'password',
+    `credential_ref`   VARCHAR(190) NOT NULL,
+    `password_hash`    VARCHAR(255) NULL,
+    `email_verified`   TINYINT(1) NOT NULL DEFAULT 0,
+    `status`           VARCHAR(32) NOT NULL DEFAULT 'active',
+    `last_login_at`    DATETIME NULL,
+    `created_at`       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    `updated_at`       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `tenant_provider_credential` (`tenant_id`, `provider`, `credential_ref`),
+    KEY `contact_id` (`contact_id`),
+    CONSTRAINT `fk_identities_contact` FOREIGN KEY (`contact_id`) REFERENCES `contacts`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `identity_tokens` (
+    `id`           INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `tenant_id`    INT UNSIGNED NOT NULL DEFAULT 1,
+    `identity_id`  INT UNSIGNED NOT NULL,
+    `purpose`      VARCHAR(64) NOT NULL,
+    `token_hash`   CHAR(64) NOT NULL,
+    `expires_at`   DATETIME NOT NULL,
+    `used_at`      DATETIME NULL,
+    `created_at`   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    KEY `token_lookup` (`tenant_id`, `token_hash`, `purpose`),
+    KEY `identity_purpose` (`identity_id`, `purpose`),
+    CONSTRAINT `fk_identity_tokens_identity` FOREIGN KEY (`identity_id`) REFERENCES `identities`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ── 14. Append-only content revisions ─────────────────────────
+CREATE TABLE IF NOT EXISTS `content_revisions` (
+    `id`             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `tenant_id`      INT UNSIGNED NOT NULL DEFAULT 1,
+    `owner_type`     VARCHAR(64) NOT NULL,
+    `owner_id`       INT UNSIGNED NOT NULL,
+    `revision`       INT UNSIGNED NOT NULL,
+    `status`         VARCHAR(16) NOT NULL DEFAULT 'working',
+    `document`       LONGTEXT NOT NULL,
+    `schema_version` INT UNSIGNED NOT NULL DEFAULT 1,
+    `author_id`      INT UNSIGNED NULL,
+    `note`           VARCHAR(190) NULL,
+    `created_at`     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `tenant_owner_revision` (`tenant_id`, `owner_type`, `owner_id`, `revision`),
+    KEY `tenant_owner_status` (`tenant_id`, `owner_type`, `owner_id`, `status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
