@@ -126,7 +126,7 @@ if (PHP_SAPI !== 'cli') {
 // ── Boot plugins ─────────────────────────────────────────────
 // Reads the `plugins` table once, requires each active plugin's
 // bootstrap, calls boot(). Inactive plugins are never touched.
-PluginLoader::boot();
+if (getenv('SLATE_TEST_SQLITE') !== '1') PluginLoader::boot();
 
 // ── Dynamic notifications ────────────────────────────────────
 // Surface key events in the topbar bell. Listeners are registered after
