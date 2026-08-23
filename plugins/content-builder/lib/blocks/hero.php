@@ -8,12 +8,13 @@ $layout = $layout ?? 'banner'; $layout = in_array($layout, ['split','banner'], t
 $overlay = $overlay ?? 'medium'; $overlay = in_array($overlay, ['light','medium','dark'], true) ? $overlay : 'medium';
 $height = $height ?? 'normal'; $height = in_array($height, ['short','normal','tall'], true) ? $height : 'normal';
 $mediaSide = ($mediaSide ?? 'left') === 'right' ? 'right' : 'left';
+$pad = $pad ?? 'normal';
+$pad = in_array($pad, ['compact', 'normal', 'spacious'], true) ? $pad : 'normal';
 $hasImg  = !empty($image);
 
 if ($layout === 'split' && $hasImg):
     $cls = 'cb-hero cb-hero-split cb-hero-media-'.$mediaSide;
 ?>
-<?php $pad = $pad ?? "normal"; $pad = in_array($pad, ["compact","normal","spacious"], true) ? $pad : "normal"; ?>
 <section class="cb-pad-<?= $pad ?> <?= $cls ?>">
     <div class="cb-hero-inner">
         <div class="cb-hero-media"><img src="<?= e(ContentBuilderAPI::mediaUrl($image)) ?>" alt="<?= e($heading ?? '') ?>"></div>
