@@ -370,7 +370,6 @@ jobs:
       PRODUCTION_FTPS_HOST: ${{ secrets.PRODUCTION_FTPS_HOST }}
       PRODUCTION_FTPS_USER: ${{ secrets.PRODUCTION_FTPS_USER }}
       PRODUCTION_FTPS_PASSWORD: ${{ secrets.PRODUCTION_FTPS_PASSWORD }}
-      PRODUCTION_FTPS_PORT: ${{ secrets.PRODUCTION_FTPS_PORT || '21' }}
       PRODUCTION_FTPS_SERVER_DIR: ${{ secrets.PRODUCTION_FTPS_SERVER_DIR || './' }}
       DEPLOY_ALERT_WEBHOOK: ${{ secrets.DEPLOY_ALERT_WEBHOOK }}
       DEPLOY_MAX_SECONDS: ${{ vars.DEPLOY_MAX_SECONDS || '600' }}
@@ -387,7 +386,7 @@ jobs:
         run: |
           set -euo pipefail
           missing=0
-          for variable in PRODUCTION_FTPS_HOST PRODUCTION_FTPS_USER PRODUCTION_FTPS_PASSWORD PRODUCTION_FTPS_PORT PRODUCTION_FTPS_SERVER_DIR; do
+          for variable in PRODUCTION_FTPS_HOST PRODUCTION_FTPS_USER PRODUCTION_FTPS_PASSWORD PRODUCTION_FTPS_SERVER_DIR; do
             if [ -z "${!variable:-}" ]; then
               echo "::error::Required production FTPS secret is missing: ${variable}"
               missing=1
@@ -425,7 +424,7 @@ jobs:
           username: ${{ env.PRODUCTION_FTPS_USER }}
           password: ${{ env.PRODUCTION_FTPS_PASSWORD }}
           protocol: ftps
-          port: ${{ env.PRODUCTION_FTPS_PORT }}
+          port: 21
           security: strict
           local-dir: /tmp/slate-production/slate/
           server-dir: ${{ env.PRODUCTION_FTPS_SERVER_DIR }}

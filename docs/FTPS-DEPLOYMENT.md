@@ -29,10 +29,9 @@ Open the repository’s **Settings → Environments → production → Environme
 | `PRODUCTION_FTPS_HOST` | The FTP hostname shown by cPanel’s Configure FTP Client screen. |
 | `PRODUCTION_FTPS_USER` | The complete dedicated FTP username, including `@domain` if cPanel requires it. |
 | `PRODUCTION_FTPS_PASSWORD` | The dedicated FTP account password. |
-| `PRODUCTION_FTPS_PORT` | The provider-supplied FTPS port; normally `21`. |
 | `PRODUCTION_FTPS_SERVER_DIR` | The remote root visible to the restricted account, commonly `./`. |
 
-The password must be entered only into GitHub’s encrypted secret field. Never commit it, place it in a workflow file, put it in a normal GitHub variable, or send it in chat. The production preflight checks that all five values are present and fails before making a network connection if any required value is empty.
+The password must be entered only into GitHub’s encrypted secret field. Never commit it, place it in a workflow file, put it in a normal GitHub variable, or send it in chat. The workflow pins the provider-confirmed explicit FTPS port to numeric port `21`, so no port secret is required. The production preflight checks that the host, username, password, and remote directory are present and fails before making a network connection if any required value is empty.
 
 The older SSH secrets may remain temporarily, but they are no longer used by the FTPS deployment job. Remove them only after the FTPS deployment has succeeded and the rollback plan is confirmed.
 
