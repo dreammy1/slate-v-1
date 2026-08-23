@@ -427,7 +427,7 @@ jobs:
           port: 21
           security: strict
           local-dir: /tmp/slate-production/slate/
-          server-dir: ${{ env.PRODUCTION_FTPS_SERVER_DIR }}
+          server-dir: ${{ env.PRODUCTION_FTPS_SERVER_DIR }}/
           state-name: .slate-ftp-deploy-sync-state.json
           log-level: minimal
           exclude: |
