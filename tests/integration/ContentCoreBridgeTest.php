@@ -15,6 +15,19 @@ declare(strict_types=1);
 use Slate\Services\Content\RevisionStore;
 use Slate\Tenancy\TenantContext;
 
+// Keep the parity suite deterministic across fresh and partially seeded databases.
+// The fixture is tenant-scoped and uses an empty layout so it exercises the
+// bridge without depending on optional demo-content seeding side effects.
+foreach (['home', 'demo'] as $seedSlug) {
+    if (!Database::value("SELECT id FROM contentbuilder_posts WHERE tenant_id = ? AND type = 'page' AND slug = ?", [current_tenant_id(), $seedSlug])) {
+        Database::insert('contentbuilder_posts', [
+            'tenant_id' => current_tenant_id(), 'type' => 'page', 'title' => ucfirst($seedSlug),
+            'slug' => $seedSlug, 'status' => 'published', 'layout' => '[]',
+            'published_at' => date('Y-m-d H:i:s'),
+        ]);
+    }
+}
+
 // Preconditions: without the plugin loaded there is nothing to bridge/verify.
 unit('bridge preconditions: plugin classes are loaded', function () {
     assert_true(class_exists('ContentBuilderAPI'), 'ContentBuilderAPI missing');
