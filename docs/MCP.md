@@ -41,3 +41,16 @@ curl -sS -X POST https://greenlightinduction.rakibhasaan.com/slate/mcp.php \
 ```
 
 The repository changes must be deployed to the server before this URL becomes available. The live URL currently serves a directory index at `/slate/` and returns 404 for `/slate/admin/login.php`, so the endpoint cannot be tested against production until the updated repository is deployed and the Slate installation is configured.
+
+
+## MCP test suite
+
+The integration suite is located at `tests/integration/McpTest.php` and runs automatically through `bash tests/run.sh` when PHP and the test database are available. It verifies module/resource discovery, read/list/test actions, settings create/edit/write/delete behavior, confirmation-token binding and single-use enforcement, sensitive-field redaction, and tenant scoping. Optional plugin resources that are not installed in the test database are reported as explicit skips rather than silently treated as passing coverage.
+
+Run the suite only against a disposable CI or staging database:
+
+```bash
+bash tests/run.sh
+```
+
+The suite creates uniquely named settings probes and cleans them up in `finally` blocks. It must never be pointed at the live production database.
