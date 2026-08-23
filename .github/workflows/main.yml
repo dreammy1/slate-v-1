@@ -55,7 +55,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -120,7 +120,7 @@ jobs:
       DB_PASS: ${{ secrets.WP_TEST_DB_PASSWORD || 'slate' }}
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -180,7 +180,7 @@ jobs:
       DB_PASS: ${{ secrets.WP_TEST_DB_PASSWORD || 'slate' }}
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
@@ -230,7 +230,7 @@ jobs:
       contents: write
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -275,7 +275,7 @@ jobs:
         id: bundle
 
       - name: Upload workflow artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: slate-release-${{ github.ref_name }}
           path: ${{ steps.bundle.outputs.artifact }}
@@ -303,7 +303,7 @@ jobs:
       DEPLOY_MAX_SECONDS: ${{ vars.DEPLOY_MAX_SECONDS || '600' }}
     steps:
       - name: Download release artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: slate-release-${{ github.ref_name }}
           path: dist
@@ -363,7 +363,7 @@ jobs:
       DEPLOY_MAX_SECONDS: ${{ vars.DEPLOY_MAX_SECONDS || '600' }}
     steps:
       - name: Download release artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: slate-release-${{ github.ref_name }}
           path: dist
