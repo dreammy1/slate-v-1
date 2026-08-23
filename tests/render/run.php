@@ -177,6 +177,12 @@ function render_verdict(string $markup, ?array $meta, int $code, string $root): 
 
 echo "# Slate page-render tests\n";
 
+if (!is_dir($root . '/plugins/studio')) {
+    echo "# SKIP optional Studio page-render suite is not present\n";
+    echo "1..0\n";
+    exit(0);
+}
+
 $pages = render_pages($root);
 if ($pages === []) {
     echo "FAIL - no pages discovered\n1..1\n";
