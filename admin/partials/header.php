@@ -90,6 +90,15 @@ $coreNav = [
         'order' => 30,
         'group'  => 'overview',
     ],
+    [
+        'slug'  => 'visual-editor',
+        'label' => 'Visual Editor',
+        'href'  => SLATE_URL . '/admin/visual_editor.php',
+        'icon'  => 'layout',
+        'perm'  => 'settings.view',
+        'order' => 40,
+        'group'  => 'overview',
+    ],
     // DEPRECATED: the legacy core Contact Forms are superseded by the Forms
     // plugin (public /forms/<slug>, webhooks, e-sign, PDF, conditional logic).
     // The nav item is hidden so admins use the plugin; the page, the
@@ -207,6 +216,7 @@ if (!$currentNav) {
             'index.php'         => 'dashboard',
             'growth_lab.php'    => 'growth-lab',
             'development_progress.php' => 'development-progress',
+            'visual_editor.php' => 'visual-editor',
             'media.php'         => 'media',
         'plugins.php'       => 'plugins',
         'users.php'         => 'users',
@@ -354,6 +364,7 @@ if (!function_exists('slate_admin_nav_icon')) {
             'life-buoy'      => '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.6"/><path d="M5.6 5.6l3.3 3.3M15.1 15.1l3.3 3.3M18.4 5.6l-3.3 3.3M8.9 15.1l-3.3 3.3"/>',
             'sparkles'       => '<path d="M12 3l1.3 4.7L18 9l-4.7 1.3L12 15l-1.3-4.7L6 9l4.7-1.3L12 3z"/><path d="M19 15l.7 2.3L22 18l-.7-2.3L16 18l2.3.7L19 21l.7-2.3L22 18z"/>',
             'activity'       => '<polyline points="3 12 7 12 10 4 14 20 17 12 21 12"/>',
+            'layout'         => '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>',
             'help-circle'    => '<circle cx="12" cy="12" r="9"/><path d="M9.1 9a3 3 0 1 1 4.6 2.5c-.9.6-1.7 1.1-1.7 2.2"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
             'circle'         => '<circle cx="12" cy="12" r="9"/>',
             'logout'         => '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
