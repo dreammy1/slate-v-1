@@ -302,7 +302,7 @@ class Auth {
                 'tenant_id'  => current_tenant_id(),
                 'scope'      => $scope,
                 'ip'         => self::clientIp(),
-                'identifier' => mb_substr($identifier, 0, 190),
+                'identifier' => \mb_substr($identifier, 0, 190),
             ]);
         } catch (\Throwable $e) {
             // Throttling must never block a login on infra error.
@@ -325,7 +325,7 @@ class Auth {
         if (self::$loginAttemptsSchemaChecked) return;
         self::$loginAttemptsSchemaChecked = true;
         try {
-            \Database::get()->exec(
+            \Database::query(
                 "CREATE TABLE IF NOT EXISTS `login_attempts` (
                     `id`           INT UNSIGNED NOT NULL AUTO_INCREMENT,
                     `tenant_id`    INT UNSIGNED NOT NULL DEFAULT 1,

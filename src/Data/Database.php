@@ -20,19 +20,17 @@ class Database {
 
     public static function get(): \PDO {
         if (self::$pdo === null) {
-            $dsn  = 'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=' . DB_CHARSET;
+            $sqlite = (getenv('SLATE_TEST_SQLITE') === '1');
+            $dsn  = $sqlite ? 'sqlite:' . (getenv('SLATE_SQLITE_PATH') ?: sys_get_temp_dir() . '/slate-integration.sqlite') : 'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=' . DB_CHARSET;
             $opts = [
                 \PDO::ATTR_ERRMODE            => \PDO::ERRMODE_EXCEPTION,
                 \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_ASSOC,
                 \PDO::ATTR_EMULATE_PREPARES   => false,
             ];
             self::$pdo = new \PDO($dsn, DB_USER, DB_PASS, $opts);
-            // READ COMMITTED so each statement sees other connections'
-            // committed writes immediately. With the default REPEATABLE
-            // READ, long-lived PHP-FPM connections can see stale data
-            // until commit. Slate isn't a long-running OLTP transaction
-            // workload, so READ COMMITTED is the right default.
-            self::$pdo->exec("SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED");
+            // MySQL-only isolation setting. SQLite is intentionally used only
+            // by the isolated integration harness and does not support it.
+            if (!$sqlite) self::$pdo->exec("SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED");
         }
         return self::$pdo;
     }
@@ -41,6 +39,25 @@ class Database {
      * Execute a query with parameters. Returns the PDOStatement.
      */
     public static function query(string $sql, array $params = []): \PDOStatement {
+        if (getenv('SLATE_TEST_SQLITE') === '1') {
+            $sql = str_replace('INSERT IGNORE', 'INSERT OR IGNORE', $sql);
+            $sql = str_replace('NOW()', 'CURRENT_TIMESTAMP', $sql);
+            $sql = preg_replace('/INT(?:\s+UNSIGNED)?\s+NOT\s+NULL\s+AUTO_INCREMENT/i', 'INTEGER PRIMARY KEY AUTOINCREMENT', $sql) ?? $sql;
+            if (preg_match('/^\s*SHOW\s+TABLES\s+LIKE\s+(.+)$/i', trim($sql), $show)) {
+                $sql = "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE " . $show[1];
+            } elseif (preg_match('/^\s*SHOW\s+TABLES\s+LIKE\s+\?\s*$/i', trim($sql))) {
+                $sql = "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE ?";
+            }
+            $sql = preg_replace('/information_schema\.tables/i', 'sqlite_master', $sql) ?? $sql;
+            $sql = preg_replace('/table_schema\s*=\s*DATABASE\(\)\s+AND\s+/i', '', $sql) ?? $sql;
+            $sql = preg_replace('/\btable_name\b/i', 'name', $sql) ?? $sql;
+            $sql = preg_replace('/,?\s+KEY\s+\w+\s*\([^)]*\)/i', '', $sql) ?? $sql;
+            $sql = preg_replace('/,?\s+UNIQUE\s+KEY\s+\w+\s*\([^)]*\)/i', '', $sql) ?? $sql;
+            $sql = preg_replace('/,?\s+CONSTRAINT\s+\w+.*?\bON\s+DELETE\s+\w+/i', '', $sql) ?? $sql;
+            $sql = preg_replace('/\s+AUTO_INCREMENT\b/i', '', $sql) ?? $sql;
+            $sql = preg_replace('/,\s*PRIMARY\s+KEY\s*\(\s*`?id`?\s*\)/i', '', $sql) ?? $sql;
+            $sql = preg_replace('/,\s*\)/', ')', $sql) ?? $sql;
+        }
         $stmt = self::get()->prepare($sql);
         $stmt->execute($params);
         return $stmt;
@@ -119,10 +136,14 @@ class Database {
      */
     public static function setSetting(string $key, $value, ?int $tenantId = null): void {
         if ($tenantId === null) $tenantId = current_tenant_id();
-        self::query(
-            "INSERT INTO settings (tenant_id, setting_key, setting_value) VALUES (?, ?, ?)
-             ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)",
+        $sql = getenv('SLATE_TEST_SQLITE') === '1'
+            ? "INSERT INTO settings (tenant_id, setting_key, setting_value) VALUES (?, ?, ?) ON CONFLICT(tenant_id, setting_key) DO UPDATE SET setting_value = excluded.setting_value"
+            : "INSERT INTO settings (tenant_id, setting_key, setting_value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)";
+        self::query($sql,
             [$tenantId, $key, $value]
         );
     }
+
+    /** Test-only reset hook; production callers should never need this. */
+    public static function reset(): void { self::$pdo = null; }
 }

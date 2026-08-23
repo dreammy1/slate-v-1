@@ -65,7 +65,7 @@ final class RevisionStore extends Repository
             'document'       => $json,
             'schema_version' => $schemaVersion,
             'author_id'      => $authorId,
-            'note'           => $note !== null ? mb_substr($note, 0, 190) : null,
+            'note'           => $note !== null ? \mb_substr($note, 0, 190) : null,
         ]);
     }
 
