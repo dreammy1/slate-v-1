@@ -293,6 +293,11 @@ INSERT INTO `role_permissions` (`role_id`, `perm_key`, `granted`) VALUES
     (4, 'media.view',       1)
 ON DUPLICATE KEY UPDATE `granted` = VALUES(`granted`);
 
+-- ── Seed: baseline settings ────────────────────────────────────
+INSERT INTO `settings` (`tenant_id`, `setting_key`, `setting_value`)
+VALUES (1, 'site_name', 'Slate')
+ON DUPLICATE KEY UPDATE `setting_value` = VALUES(`setting_value`);
+
 -- ── 13. Canonical contacts and identity services ───────────────
 -- Shared party records used by the newer identity service layer.
 CREATE TABLE IF NOT EXISTS `contacts` (
