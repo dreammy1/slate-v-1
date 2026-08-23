@@ -22,7 +22,8 @@ $blocked = str_starts_with($path, '/db/')
 
 if ($blocked) {
     http_response_code(403);
-    require $root . '/403.php';
+    header('Content-Type: text/plain; charset=UTF-8');
+    echo "Access denied\n";
     exit;
 }
 
