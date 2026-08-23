@@ -33,9 +33,9 @@ A phase is complete only when its implementation, tests, security checks, docume
 | ID | Task | Parallel lane | Depends on | Acceptance evidence | Status |
 |---|---|---|---|---|---|
 | C-01 | Audit Content Builder, SEO, public router, Template Engine, Theme Engine, Asset Manager, tenancy, hooks, and migrations | Architecture | — | Audit note with extension points and compatibility risks | Complete |
-| C-02 | Define versioned page document schema and node identity rules | Data model | C-01 | Schema document plus JSON fixtures | Not started |
+| C-02 | Define versioned page document schema and node identity rules | Data model | C-01 | Schema document plus JSON fixtures | In progress |
 | C-03 | Define theme/template/page/block/global-part boundaries | Platform contracts | C-01 | Contract interfaces and lifecycle diagram | In progress |
-| C-04 | Define HTML/CSS/asset security policy | Security | C-01 | Sanitization allowlist, quarantine rules, threat cases | Not started |
+| C-04 | Define HTML/CSS/asset security policy | Security | C-01 | Sanitization allowlist, quarantine rules, threat cases | In progress |
 | C-05 | Define event taxonomy for page, SEO, asset, form, booking, payment, and portal events | Platform events | C-01 | Event names, payloads, tenant scope, idempotency rules | Not started |
 
 ## Phase 1 — SEO control plane · 20%
@@ -66,8 +66,8 @@ A phase is complete only when its implementation, tests, security checks, docume
 
 | ID | Task | Parallel lane | Depends on | Acceptance evidence | Status |
 |---|---|---|---|---|---|
-| IMP-01 | Implement upload/quarantine/checksum pipeline | Security/storage | THM-03, C-04 | Unsafe archive and file tests | Not started |
-| IMP-02 | Implement HTML parser and source artifact preservation | Importer | C-02, C-04 | Representative fixtures retained and parsed | Not started |
+| IMP-01 | Implement upload/quarantine/checksum pipeline | Security/storage | THM-03, C-04 | Unsafe archive and file tests | In progress |
+| IMP-02 | Implement HTML parser and source artifact preservation | Importer | C-02, C-04 | Representative fixtures retained and parsed | In progress |
 | IMP-03 | Implement CSS extraction, scoping, and unsupported-rule warnings | Importer | IMP-02 | Scoped output and warning fixtures | Not started |
 | IMP-04 | Map local images/fonts/icons into Media Library | Media | IMP-01, IMP-02 | Asset manifest and tenant isolation tests | Not started |
 | IMP-05 | Detect semantic regions and repeated components | Importer | IMP-02 | Region mapping report | Not started |
@@ -77,7 +77,7 @@ A phase is complete only when its implementation, tests, security checks, docume
 
 | ID | Task | Parallel lane | Depends on | Acceptance evidence | Status |
 |---|---|---|---|---|---|
-| DOC-01 | Implement stable node IDs, parent/child constraints, and schema versions | Data model | C-02, IMP-02 | Tree validation tests | Not started |
+| DOC-01 | Implement stable node IDs, parent/child constraints, and schema versions | Data model | C-02, IMP-02 | Tree validation tests | In progress |
 | DOC-02 | Implement structured styles, token references, classes, and responsive overrides | Design system | THM-02, DOC-01 | Inheritance and reset tests | Not started |
 | DOC-03 | Implement page/template/global-part version storage | Backend | THM-04, DOC-01 | Immutable revision and tenant tests | Not started |
 | DOC-04 | Implement document renderer adapter for existing public rendering | Rendering | DOC-01–03 | Existing page compatibility tests | Not started |
