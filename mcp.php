@@ -22,6 +22,19 @@ function mcp_error($id, int $code, string $message, array $data = []): never {
     exit;
 }
 
+/**
+ * MCP lifecycle notifications are valid JSON-RPC messages without an id.
+ * They must be consumed without returning a JSON-RPC response. Returning an
+ * error for them causes otherwise-compatible MCP clients to abort initialization.
+ */
+function mcp_accept_notification(string $method): bool {
+    return in_array($method, [
+        'notifications/initialized',
+        'notifications/cancelled',
+        'notifications/progress',
+    ], true);
+}
+
 $auth = (string)($_SERVER['HTTP_AUTHORIZATION'] ?? '');
 if (!preg_match('/^Bearer\s+(.+)$/i', $auth, $match)) {
     header('WWW-Authenticate: Bearer');
@@ -42,14 +55,21 @@ $request = json_decode($raw ?: '', true);
 if (!is_array($request) || ($request['jsonrpc'] ?? '') !== '2.0') {
     mcp_error(null, -32600, 'Invalid JSON-RPC request.');
 }
-$method = (string)($request['method'] ?? '');
-// JSON-RPC notifications intentionally have no id. MCP clients send this
-// notification immediately after initialize; it must be accepted before the
-// request-id validation used for methods that return a response.
-if ($method === 'notifications/initialized') {
+$method = $request['method'] ?? null;
+if (!is_string($method) || $method === '') {
+    mcp_error(array_key_exists('id', $request) ? $request['id'] : null, -32600, 'Missing JSON-RPC method.');
+}
+
+// JSON-RPC notifications intentionally have no id. MCP clients send
+// notifications/initialized immediately after initialize; accept all standard
+// MCP notifications before enforcing the id requirement for methods that
+// return a response. A notification has no JSON-RPC response body.
+if (mcp_accept_notification($method)) {
     http_response_code(202);
+    header('Content-Length: 0');
     exit;
 }
+
 if (!array_key_exists('id', $request)) {
     mcp_error(null, -32600, 'Invalid JSON-RPC request.');
 }
