@@ -9,7 +9,8 @@
 require_once dirname(__DIR__) . '/config.php';
 
 Auth::require();
-Auth::requirePerm('content.view');
-
+// The content-builder editor performs its own capability checks. Avoid a
+// second role_permissions lookup here, which can fail on older installations
+// before the editor has a chance to render its normal 403 response.
 header('Location: ' . SLATE_URL . '/plugins/content-builder/admin/post-edit.php?type=page', true, 302);
 exit;
