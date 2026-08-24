@@ -39,11 +39,21 @@ if (!$identity['ok']) {
 
 $raw = file_get_contents('php://input');
 $request = json_decode($raw ?: '', true);
-if (!is_array($request) || ($request['jsonrpc'] ?? '') !== '2.0' || !array_key_exists('id', $request)) {
+if (!is_array($request) || ($request['jsonrpc'] ?? '') !== '2.0') {
+    mcp_error(null, -32600, 'Invalid JSON-RPC request.');
+}
+$method = (string)($request['method'] ?? '');
+// JSON-RPC notifications intentionally have no id. MCP clients send this
+// notification immediately after initialize; it must be accepted before the
+// request-id validation used for methods that return a response.
+if ($method === 'notifications/initialized') {
+    http_response_code(202);
+    exit;
+}
+if (!array_key_exists('id', $request)) {
     mcp_error(null, -32600, 'Invalid JSON-RPC request.');
 }
 $id = $request['id'];
-$method = (string)($request['method'] ?? '');
 $params = is_array($request['params'] ?? null) ? $request['params'] : [];
 
 try {
@@ -54,10 +64,6 @@ try {
             'serverInfo' => ['name' => 'slate-admin-mcp', 'version' => defined('SLATE_VERSION') ? SLATE_VERSION : '1.0.0'],
             'instructions' => 'Use slate_admin_preview before every mutation, then pass its single-use confirmation_token to slate_admin_execute.',
         ]);
-    }
-    if ($method === 'notifications/initialized') {
-        http_response_code(202);
-        exit;
     }
     if ($method === 'tools/list') {
         mcp_response($id, ['tools' => [
