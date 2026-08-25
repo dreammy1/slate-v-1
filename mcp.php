@@ -6,7 +6,8 @@ require_once __DIR__ . '/config.php';
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
-header('X-Slate-MCP-Revision: 1.0.19');
+header('X-Slate-MCP-Revision: 1.0.20');
+header('X-Slate-MCP-Notifications: 202-empty');
 header('X-Slate-MCP-Protocol: jsonrpc-2.0');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
