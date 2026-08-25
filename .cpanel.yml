@@ -11,3 +11,4 @@ deployment:
     - if [ ! -d "$DEPLOYPATH/uploads" ] && [ -d "$DEPLOYPATH/slate/uploads" ]; then /bin/cp -a "$DEPLOYPATH/slate/uploads" "$DEPLOYPATH/uploads"; fi
     - if [ ! -d "$DEPLOYPATH/data" ] && [ -d "$DEPLOYPATH/slate/data" ]; then /bin/cp -a "$DEPLOYPATH/slate/data" "$DEPLOYPATH/data"; fi
     - /usr/bin/rsync -a --delete-delay --exclude='/.git/' --exclude='/.github/' --exclude='/.cpanel.yml' --exclude='/.env' --exclude='/.env.*' --exclude='/.claude/' --exclude='/uploads/' --exclude='/data/' --exclude='/slate/' --exclude='/slate-bk/' --exclude='/slate-bk2/' --exclude='/tests/' --exclude='/docs/' --exclude='/skills/' --exclude='/scratchpad/' --exclude='/node_modules/' --exclude='/dist/' --exclude='/plugins/_dist/' --exclude='/*.zip' --exclude='*.log' --exclude='/error_log' --exclude='*.bak' --exclude='/_*.php' ./ "$DEPLOYPATH/"
+    - /bin/chmod 755 "$DEPLOYPATH"
