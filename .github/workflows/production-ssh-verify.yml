@@ -16,13 +16,13 @@ jobs:
       PRODUCTION_USER: ${{ secrets.PRODUCTION_USER }}
       PRODUCTION_PATH: ${{ secrets.PRODUCTION_PATH }}
       PRODUCTION_SSH_PRIVATE_KEY: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
-      PRODUCTION_SSH_PORT: ${{ secrets.PRODUCTION_SSH_PORT || '21098' }}
+      PRODUCTION_SSH_PORT: '21098'
     steps:
       - name: Validate required SSH configuration
         shell: bash
         run: |
           set -euo pipefail
-          for variable in PRODUCTION_HOST PRODUCTION_USER PRODUCTION_PATH PRODUCTION_SSH_PRIVATE_KEY PRODUCTION_SSH_PORT; do
+          for variable in PRODUCTION_HOST PRODUCTION_USER PRODUCTION_PATH PRODUCTION_SSH_PRIVATE_KEY; do
             if [ -z "${!variable:-}" ]; then
               echo "::error::Required production SSH secret is missing: ${variable}"
               exit 1
