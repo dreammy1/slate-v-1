@@ -1,0 +1,45 @@
+# GitHub-to-cPanel Automatic Deployment
+
+This deployment path uses the selected cPanel-native model. Every push to `main` first passes the repository’s existing quality, PHP test, security, E2E, and release-package jobs. When those jobs succeed, the `Deploy validated main to cPanel` job connects to the existing cPanel-managed repository and requests a cPanel deployment task. The deployment task pulls the GitHub `main` branch with cPanel’s fast-forward safeguards and executes the top-level `.cpanel.yml` manifest. [1] [2]
+
+> **Target directory:** `/home/rakilluy/greenlightinduction.rakibhasaan.com/slate`.
+>
+> The active site responds at `https://greenlightinduction.rakibhasaan.com/slate/`. Do not change this target unless the domain’s document root is changed in cPanel.
+
+## One-time activation
+
+Create a dedicated **Ed25519** key for this deployment only. Add the public key in cPanel under **SSH Access → Manage SSH Keys**, then authorize it. Store the private key only as the GitHub environment secret named `CPANEL_DEPLOY_SSH_PRIVATE_KEY`. Never commit either key to the repository.
+
+Add the following production environment configuration in GitHub. The defaults shown in the workflow already match the known server layout, so only the two secrets are required for the initial activation.
+
+| GitHub configuration                   | Required value                                               | Purpose                                           |
+| -------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------- |
+| Secret `CPANEL_DEPLOY_SSH_PRIVATE_KEY` | Dedicated deployment key private half                        | Allows the workflow to reach cPanel over SSH.     |
+| Secret `CPANEL_DEPLOY_SSH_KNOWN_HOSTS` | Pinned SSH host entry for `premium106.web-hosting.com:21098` | Prevents host-key substitution during deployment. |
+| Variable `CPANEL_HOST`                 | `premium106.web-hosting.com`                                 | Hosting endpoint.                                 |
+| Variable `CPANEL_PORT`                 | `21098`                                                      | Hosting SSH port.                                 |
+| Variable `CPANEL_USER`                 | `rakilluy`                                                   | cPanel account user.                              |
+| Variable `CPANEL_REPOSITORY_ROOT`      | `/home/rakilluy/repositories/slate-v-1`                      | cPanel-managed repository.                        |
+| Variable `CPANEL_DEPLOY_HEALTH_URL`    | `https://greenlightinduction.rakibhasaan.com/slate/`         | Public post-deploy verification endpoint.         |
+
+Configure any reviewer or wait-timer rules you want under the GitHub `production` environment. Without required reviewers, a passed push to `main` deploys automatically.
+
+## Deployment behavior and preservation rules
+
+The manifest copies only deployable application source into the live target. It deliberately preserves `.env` files, `uploads/`, and `data/` so production configuration and customer-generated files are not overwritten. It excludes tests, internal documents, package artifacts, logs, backups, Git metadata, and underscore-prefixed maintenance scripts.
+
+The active deployment job fails safely if the cPanel repository has uncommitted changes, the cPanel deployment task reports failure, or the public URL does not return a successful response. cPanel also requires a clean repository and a valid checked-in `.cpanel.yml` before it will execute deployment. [1]
+
+## Rollback
+
+To roll back safely, revert the faulty GitHub commit on `main`; the same validated deployment path redeploys the prior code. Do not edit the cPanel working tree directly, because local changes make the repository dirty and block cPanel deployment. If the server itself is unavailable, restore the known good archive only through cPanel’s backup tools, then reconcile the Git repository before re-enabling automatic deployment.
+
+## Public-root hardening
+
+The parent domain root currently lists directory contents while the application lives under `/slate/`. The application’s own `.htaccess` disables indexes inside `/slate/`, but the parent root should separately disable directory indexes or redirect to `/slate/` in cPanel to prevent public exposure of archives and directory names.
+
+## References
+
+[1] [cPanel, _Guide to Git — Deployment_](https://docs.cpanel.net/knowledge-base/web-services/guide-to-git-deployment/)
+
+[2] [cPanel, _Guide to Git — Set Up Deployment_](https://docs.cpanel.net/knowledge-base/web-services/guide-to-git-set-up-deployment/)

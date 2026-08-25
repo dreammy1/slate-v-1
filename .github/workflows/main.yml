@@ -5,7 +5,7 @@ on:
     branches: [main, develop]
   push:
     branches: [main]
-    tags: ['v*.*.*']
+    tags: ["v*.*.*"]
   workflow_dispatch:
     inputs:
       deployment_mode:
@@ -33,12 +33,12 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  COMPOSER_NO_INTERACTION: '1'
+  COMPOSER_NO_INTERACTION: "1"
   MYSQL_DATABASE: slate_test
   MYSQL_USER: slate
   MYSQL_PASSWORD: slate
   MYSQL_HOST: 127.0.0.1
-  MYSQL_PORT: '3306'
+  MYSQL_PORT: "3306"
   DB_NAME: slate_test
   DB_USER: slate
   DB_PASS: slate
@@ -47,7 +47,7 @@ env:
   APP_URL: http://127.0.0.1:8080/slate
   APP_SECRET: ci-only-secret
   CRON_SECRET: ci-only-cron-secret
-  TENANT_ID: '1'
+  TENANT_ID: "1"
 
 jobs:
   quality-checks:
@@ -60,7 +60,7 @@ jobs:
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
+          php-version: "8.3"
           extensions: mbstring, zip, openssl, fileinfo, curl, gd, pdo_mysql
           tools: composer
           coverage: none
@@ -100,7 +100,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        php: ['8.1', '8.2', '8.3']
+        php: ["8.1", "8.2", "8.3"]
     services:
       mysql:
         image: mysql:8.0
@@ -185,7 +185,7 @@ jobs:
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
+          php-version: "8.3"
           extensions: mbstring, zip, openssl, fileinfo, curl, gd, pdo_mysql
           tools: composer
           coverage: none
@@ -237,7 +237,7 @@ jobs:
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
+          php-version: "8.3"
           extensions: mbstring, zip, openssl, fileinfo, curl, gd, pdo_mysql
           tools: composer
           coverage: none
@@ -286,7 +286,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "$GITHUB_REF_NAME" "${{ steps.bundle.outputs.artifact }}" --generate-notes --verify-tag
-
 
   deploy-staging:
     name: Deploy main to staging
@@ -457,3 +456,79 @@ jobs:
           curl -fsS --max-time 10 -X POST -H 'Content-Type: application/json' \
             --data "{\"text\":\"Slate production deployment failed: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\"}" \
             "$DEPLOY_ALERT_WEBHOOK" || echo 'Failure alert could not be delivered.'
+
+  deploy-cpanel-production:
+    name: Deploy validated main to cPanel
+    runs-on: ubuntu-latest
+    needs: package
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.package.result == 'success' }}
+    environment: production
+    concurrency:
+      group: cpanel-production-deploy
+      cancel-in-progress: false
+    env:
+      CPANEL_HOST: ${{ vars.CPANEL_HOST || 'premium106.web-hosting.com' }}
+      CPANEL_PORT: ${{ vars.CPANEL_PORT || '21098' }}
+      CPANEL_USER: ${{ vars.CPANEL_USER || 'rakilluy' }}
+      CPANEL_REPOSITORY_ROOT: ${{ vars.CPANEL_REPOSITORY_ROOT || '/home/rakilluy/repositories/slate-v-1' }}
+      CPANEL_DEPLOY_HEALTH_URL: ${{ vars.CPANEL_DEPLOY_HEALTH_URL || 'https://greenlightinduction.rakibhasaan.com/slate/' }}
+      CPANEL_DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.CPANEL_DEPLOY_SSH_PRIVATE_KEY }}
+      CPANEL_DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.CPANEL_DEPLOY_SSH_KNOWN_HOSTS }}
+    steps:
+      - name: Validate cPanel deployment configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          for variable in CPANEL_HOST CPANEL_PORT CPANEL_USER CPANEL_REPOSITORY_ROOT CPANEL_DEPLOY_HEALTH_URL CPANEL_DEPLOY_SSH_PRIVATE_KEY CPANEL_DEPLOY_SSH_KNOWN_HOSTS; do
+            if [ -z "${!variable:-}" ]; then
+              echo "::error::Missing production deployment configuration: ${variable}"
+              exit 1
+            fi
+          done
+          case "$CPANEL_HOST" in *://*|*/*|*:* ) echo '::error::CPANEL_HOST must be a hostname only.'; exit 1;; esac
+          case "$CPANEL_PORT" in *[!0-9]*|'') echo '::error::CPANEL_PORT must be numeric.'; exit 1;; esac
+          case "$CPANEL_REPOSITORY_ROOT" in /home/*/repositories/*) ;; *) echo '::error::CPANEL_REPOSITORY_ROOT must be a cPanel repository path.'; exit 1;; esac
+          esac
+
+      - name: Prepare pinned SSH connection
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -d -m 700 "$HOME/.ssh"
+          umask 077
+          printf '%s\n' "$CPANEL_DEPLOY_SSH_PRIVATE_KEY" > "$HOME/.ssh/cpanel_deploy"
+          printf '%s\n' "$CPANEL_DEPLOY_SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/cpanel_deploy"
+          chmod 644 "$HOME/.ssh/known_hosts"
+
+      - name: Pull and deploy cPanel-managed repository
+        id: cpanel-deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          deployed_sha="$(ssh -i "$HOME/.ssh/cpanel_deploy" -o BatchMode=yes -o ConnectTimeout=20 -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -p "$CPANEL_PORT" "$CPANEL_USER@$CPANEL_HOST" "bash -s -- '$CPANEL_REPOSITORY_ROOT'" <<'REMOTE'
+          set -euo pipefail
+          repository_root="$1"
+          test -d "$repository_root/.git" || { echo 'The configured cPanel repository does not exist.' >&2; exit 1; }
+          test -z "$(git -C "$repository_root" status --porcelain)" || { echo 'The cPanel repository has uncommitted changes; refusing deployment.' >&2; exit 1; }
+          deployment_result="$(uapi --output=json VersionControlDeployment create repository_root="$repository_root")"
+          printf '%s\n' "$deployment_result"
+          printf '%s' "$deployment_result" | grep -Eq '"status"[[:space:]]*:[[:space:]]*1' || { echo 'The cPanel deployment task reported a failure.' >&2; exit 1; }
+          git -C "$repository_root" rev-parse HEAD
+          REMOTE
+          )"
+          printf 'deployed_sha=%s\n' "$(printf '%s\n' "$deployed_sha" | tail -1)" >> "$GITHUB_OUTPUT"
+
+      - name: Verify the public application
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --max-time 25 "$CPANEL_DEPLOY_HEALTH_URL" > /dev/null
+          echo "### cPanel deployment succeeded" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Commit: \`${{ steps.cpanel-deploy.outputs.deployed_sha }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Health check: $CPANEL_DEPLOY_HEALTH_URL" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remove ephemeral SSH material
+        if: always()
+        shell: bash
+        run: rm -f "$HOME/.ssh/cpanel_deploy" "$HOME/.ssh/known_hosts"

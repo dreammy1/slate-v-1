@@ -15,14 +15,15 @@ jobs:
       PRODUCTION_HOST: premium106.web-hosting.com
       PRODUCTION_USER: rakilluy
       PRODUCTION_PATH: /home/rakilluy/greenlightinduction.rakibhasaan.com/slate
-      PRODUCTION_SSH_PRIVATE_KEY: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
-      PRODUCTION_SSH_PORT: '21098'
+      PRODUCTION_SSH_PRIVATE_KEY: ${{ secrets.CPANEL_DEPLOY_SSH_PRIVATE_KEY }}
+      PRODUCTION_SSH_KNOWN_HOSTS: ${{ secrets.CPANEL_DEPLOY_SSH_KNOWN_HOSTS }}
+      PRODUCTION_SSH_PORT: "21098"
     steps:
       - name: Validate required SSH configuration
         shell: bash
         run: |
           set -euo pipefail
-          for variable in PRODUCTION_SSH_PRIVATE_KEY; do
+          for variable in PRODUCTION_SSH_PRIVATE_KEY PRODUCTION_SSH_KNOWN_HOSTS; do
             if [ -z "${!variable:-}" ]; then
               echo "::error::Required production SSH secret is missing: ${variable}"
               exit 1
@@ -42,11 +43,7 @@ jobs:
           printf '%s' "$PRODUCTION_HOST" | sha256sum | sed 's/ .*$//' | sed 's/^/SSH host value hash: /' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' "$PRODUCTION_SSH_PRIVATE_KEY" > "$HOME/.ssh/slate_deploy_github"
           chmod 600 "$HOME/.ssh/slate_deploy_github"
-          if ! ssh-keyscan -T 15 -p "$PRODUCTION_SSH_PORT" "$PRODUCTION_HOST" > "$HOME/.ssh/known_hosts" 2> "$HOME/.ssh/keyscan.stderr"; then
-            echo '::error::SSH host-key scan failed; check PRODUCTION_HOST and PRODUCTION_SSH_PORT.'
-            sed -n '1,5p' "$HOME/.ssh/keyscan.stderr" || true
-            exit 1
-          fi
+          printf '%s\n' "$PRODUCTION_SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
           test -s "$HOME/.ssh/known_hosts" || { echo '::error::SSH host-key scan returned no host key.'; exit 1; }
           chmod 644 "$HOME/.ssh/known_hosts"
 
@@ -59,6 +56,7 @@ jobs:
             -p "$PRODUCTION_SSH_PORT" \
             -o ConnectTimeout=20 \
             -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
             "$PRODUCTION_USER@$PRODUCTION_HOST" 'bash -s' <<'REMOTE'
           set -euo pipefail
           printf 'SSH authentication: success\n'

@@ -1,0 +1,9 @@
+---
+# Slate cPanel deployment manifest.
+# This repository is managed by cPanel at /home/rakilluy/repositories/slate-v-1.
+# Keep server-local runtime configuration and customer uploads out of deployments.
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/rakilluy/greenlightinduction.rakibhasaan.com/slate
+    - /bin/mkdir -p "$DEPLOYPATH"
+    - /usr/bin/rsync -a --delete-delay --exclude='/.git/' --exclude='/.github/' --exclude='/.cpanel.yml' --exclude='/.env' --exclude='/.env.*' --exclude='/uploads/' --exclude='/data/' --exclude='/tests/' --exclude='/docs/' --exclude='/skills/' --exclude='/scratchpad/' --exclude='/node_modules/' --exclude='/dist/' --exclude='/plugins/_dist/' --exclude='*.zip' --exclude='*.log' --exclude='error_log' --exclude='*.bak' --exclude='/_*.php' ./ "$DEPLOYPATH/"
