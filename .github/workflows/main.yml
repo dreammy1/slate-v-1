@@ -474,6 +474,8 @@ jobs:
       CPANEL_DEPLOY_HEALTH_URL: ${{ vars.CPANEL_DEPLOY_HEALTH_URL || 'https://greenlightinduction.rakibhasaan.com/' }}
       CPANEL_DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.CPANEL_DEPLOY_SSH_PRIVATE_KEY }}
       CPANEL_DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.CPANEL_DEPLOY_SSH_KNOWN_HOSTS }}
+      DASHBOARD_DEPLOY_WEBHOOK_URL: ${{ vars.DASHBOARD_DEPLOY_WEBHOOK_URL }}
+      DASHBOARD_DEPLOY_WEBHOOK_SECRET: ${{ secrets.DASHBOARD_DEPLOY_WEBHOOK_SECRET }}
     steps:
       - name: Validate cPanel deployment configuration
         shell: bash
@@ -537,6 +539,34 @@ jobs:
           echo "### cPanel deployment succeeded" >> "$GITHUB_STEP_SUMMARY"
           echo "- Commit: \`${{ steps.cpanel-deploy.outputs.deployed_sha }}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Health check: $CPANEL_DEPLOY_HEALTH_URL" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Notify command center of verified deployment
+        if: ${{ env.DASHBOARD_DEPLOY_WEBHOOK_URL != '' && env.DASHBOARD_DEPLOY_WEBHOOK_SECRET != '' }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          deployed_sha="${{ steps.cpanel-deploy.outputs.deployed_sha }}"
+          delivery_id="deployment-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          payload="$(jq -nc \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg timestamp "$timestamp" \
+            --arg sha "$deployed_sha" \
+            --arg commit_url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$deployed_sha" \
+            --arg run_id "$GITHUB_RUN_ID" \
+            --arg run_url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --arg target_url "$CPANEL_DEPLOY_HEALTH_URL" \
+            '{version: 1, repository: $repository, environment: "production", state: "success", timestamp: $timestamp, commit: {sha: $sha, url: $commit_url}, workflow: {runId: $run_id, url: $run_url}, targetUrl: $target_url, health: {status: "healthy", url: $target_url}, summary: ("cPanel deployment verified for " + $sha), releaseNotes: ["cPanel deployment task completed", "Public health check passed"]}')"
+          signature="sha256=$(printf '%s' "$payload" | openssl dgst -sha256 -hmac "$DASHBOARD_DEPLOY_WEBHOOK_SECRET" -hex | sed 's/^.* //')"
+          curl --fail --silent --show-error --max-time 15 \
+            -X POST "$DASHBOARD_DEPLOY_WEBHOOK_URL" \
+            -H 'Content-Type: application/json' \
+            -H 'X-GitHub-Event: deployment' \
+            -H "X-GitHub-Delivery: $delivery_id" \
+            -H "X-Hub-Signature-256: $signature" \
+            --data-binary "$payload"
+          echo "- Command-center deployment event delivered." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Remove ephemeral SSH material
         if: always()
