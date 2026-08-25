@@ -41,7 +41,7 @@ ErrorDocument 500 /500.php
 # The .bak/.orig/.sql patterns cover the other common accident: an editor or a
 # hand-rolled backup left in the doc root, where a .bak of a .php is served as
 # plain text rather than executed — i.e. source disclosure.
-<FilesMatch "(^error_log$|\.log$|\.bak$|\.orig$|\.save$|\.swp$|\.sql$|~$)">
+<FilesMatch "(^error_log$|\.log$|\.zip$|\.bak$|\.orig$|\.save$|\.swp$|\.sql$|~$)">
     Require all denied
 </FilesMatch>
 
