@@ -16,12 +16,13 @@ jobs:
       PRODUCTION_USER: ${{ secrets.PRODUCTION_USER }}
       PRODUCTION_PATH: ${{ secrets.PRODUCTION_PATH }}
       PRODUCTION_SSH_PRIVATE_KEY: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
+      PRODUCTION_SSH_PORT: ${{ secrets.PRODUCTION_SSH_PORT || '21098' }}
     steps:
       - name: Validate required SSH configuration
         shell: bash
         run: |
           set -euo pipefail
-          for variable in PRODUCTION_HOST PRODUCTION_USER PRODUCTION_PATH PRODUCTION_SSH_PRIVATE_KEY; do
+          for variable in PRODUCTION_HOST PRODUCTION_USER PRODUCTION_PATH PRODUCTION_SSH_PRIVATE_KEY PRODUCTION_SSH_PORT; do
             if [ -z "${!variable:-}" ]; then
               echo "::error::Required production SSH secret is missing: ${variable}"
               exit 1
@@ -37,7 +38,7 @@ jobs:
           umask 077
           printf '%s\n' "$PRODUCTION_SSH_PRIVATE_KEY" > "$HOME/.ssh/slate_deploy_github"
           chmod 600 "$HOME/.ssh/slate_deploy_github"
-          ssh-keyscan -T 15 -p 22 "$PRODUCTION_HOST" >> "$HOME/.ssh/known_hosts" 2>/dev/null
+          ssh-keyscan -T 15 -p "$PRODUCTION_SSH_PORT" "$PRODUCTION_HOST" >> "$HOME/.ssh/known_hosts" 2>/dev/null
           chmod 644 "$HOME/.ssh/known_hosts"
 
       - name: Run read-only server inspection
@@ -46,6 +47,7 @@ jobs:
           set -euo pipefail
           ssh -i "$HOME/.ssh/slate_deploy_github" \
             -o BatchMode=yes \
+            -p "$PRODUCTION_SSH_PORT" \
             -o ConnectTimeout=20 \
             -o IdentitiesOnly=yes \
             "$PRODUCTION_USER@$PRODUCTION_HOST" 'bash -s' <<'REMOTE'
