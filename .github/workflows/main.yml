@@ -512,11 +512,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          deployed_sha="$(ssh -i "$HOME/.ssh/cpanel_deploy" -o BatchMode=yes -o ConnectTimeout=20 -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -p "$CPANEL_PORT" "$CPANEL_USER@$CPANEL_HOST" "bash -s -- '$CPANEL_REPOSITORY_ROOT'" <<'REMOTE'
+          deployed_sha="$(ssh -i "$HOME/.ssh/cpanel_deploy" -o BatchMode=yes -o ConnectTimeout=20 -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -p "$CPANEL_PORT" "$CPANEL_USER@$CPANEL_HOST" "bash -s -- '$CPANEL_REPOSITORY_ROOT' '$GITHUB_SHA'" <<'REMOTE'
           set -euo pipefail
           repository_root="$1"
+          expected_sha="$2"
           test -d "$repository_root/.git" || { echo 'The configured cPanel repository does not exist.' >&2; exit 1; }
           test -z "$(git -C "$repository_root" status --porcelain)" || { echo 'The cPanel repository has uncommitted changes; refusing deployment.' >&2; exit 1; }
+          git -C "$repository_root" fetch --prune origin main
+          git -C "$repository_root" merge --ff-only origin/main
+          test "$(git -C "$repository_root" rev-parse HEAD)" = "$expected_sha" || { echo 'The cPanel repository did not reach the validated GitHub commit.' >&2; exit 1; }
           deployment_result="$(uapi --output=json VersionControlDeployment create repository_root="$repository_root")"
           printf '%s\n' "$deployment_result"
           printf '%s' "$deployment_result" | grep -Eq '"status"[[:space:]]*:[[:space:]]*1' || { echo 'The cPanel deployment task reported a failure.' >&2; exit 1; }
