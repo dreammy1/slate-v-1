@@ -1,0 +1,78 @@
+name: Production SSH Verification
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-production-ssh:
+    name: Verify production SSH and document root
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      PRODUCTION_HOST: ${{ secrets.PRODUCTION_HOST }}
+      PRODUCTION_USER: ${{ secrets.PRODUCTION_USER }}
+      PRODUCTION_PATH: ${{ secrets.PRODUCTION_PATH }}
+      PRODUCTION_SSH_PRIVATE_KEY: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
+    steps:
+      - name: Validate required SSH configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          for variable in PRODUCTION_HOST PRODUCTION_USER PRODUCTION_PATH PRODUCTION_SSH_PRIVATE_KEY; do
+            if [ -z "${!variable:-}" ]; then
+              echo "::error::Required production SSH secret is missing: ${variable}"
+              exit 1
+            fi
+          done
+          echo 'Required production SSH configuration is present.' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Prepare ephemeral SSH identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -m 700 -d "$HOME/.ssh"
+          umask 077
+          printf '%s\n' "$PRODUCTION_SSH_PRIVATE_KEY" > "$HOME/.ssh/slate_deploy_github"
+          chmod 600 "$HOME/.ssh/slate_deploy_github"
+          ssh-keyscan -T 15 -p 22 "$PRODUCTION_HOST" >> "$HOME/.ssh/known_hosts" 2>/dev/null
+          chmod 644 "$HOME/.ssh/known_hosts"
+
+      - name: Run read-only server inspection
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i "$HOME/.ssh/slate_deploy_github" \
+            -o BatchMode=yes \
+            -o ConnectTimeout=20 \
+            -o IdentitiesOnly=yes \
+            "$PRODUCTION_USER@$PRODUCTION_HOST" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          printf 'SSH authentication: success\n'
+          printf 'Remote user: '; id -un
+          printf 'Home directory: '; printf '%s\n' "$HOME"
+          printf 'Document-root candidates:\n'
+          for path in \
+            "$HOME/greenlightinduction.rakibhasaan.com" \
+            "$HOME/greenlightinduction.rakibhasaan.com/slate" \
+            "$HOME/public_html" \
+            "$HOME/public_html/slate"; do
+            if [ -e "$path" ]; then
+              printf '  %s exists\n' "$path"
+              if [ -f "$path/mcp.php" ]; then
+                sha256sum "$path/mcp.php" | sed 's#  .*#  mcp.php#'
+              fi
+            else
+              printf '  %s absent\n' "$path"
+            fi
+          done
+          printf 'PHP version: '; php -v 2>/dev/null | head -1 || printf 'unavailable\n'
+          REMOTE
+
+      - name: Remove ephemeral SSH identity
+        if: always()
+        shell: bash
+        run: |
+          rm -f "$HOME/.ssh/slate_deploy_github" "$HOME/.ssh/known_hosts"
