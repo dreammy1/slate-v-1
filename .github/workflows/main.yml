@@ -485,9 +485,15 @@ jobs:
               exit 1
             fi
           done
-          case "$CPANEL_HOST" in *://*|*/*|*:* ) echo '::error::CPANEL_HOST must be a hostname only.'; exit 1;; esac
-          case "$CPANEL_PORT" in *[!0-9]*|'') echo '::error::CPANEL_PORT must be numeric.'; exit 1;; esac
-          case "$CPANEL_REPOSITORY_ROOT" in /home/*/repositories/*) ;; *) echo '::error::CPANEL_REPOSITORY_ROOT must be a cPanel repository path.'; exit 1;; esac
+          case "$CPANEL_HOST" in
+            *://*|*/*|*:* ) echo '::error::CPANEL_HOST must be a hostname only.'; exit 1 ;;
+          esac
+          case "$CPANEL_PORT" in
+            *[!0-9]*|'' ) echo '::error::CPANEL_PORT must be numeric.'; exit 1 ;;
+          esac
+          case "$CPANEL_REPOSITORY_ROOT" in
+            /home/*/repositories/* ) ;;
+            * ) echo '::error::CPANEL_REPOSITORY_ROOT must be a cPanel repository path.'; exit 1 ;;
           esac
 
       - name: Prepare pinned SSH connection
