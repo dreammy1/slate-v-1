@@ -36,9 +36,18 @@ jobs:
           set -euo pipefail
           install -m 700 -d "$HOME/.ssh"
           umask 077
+          case "$PRODUCTION_HOST" in
+            *://*|*/*|*:* ) echo '::error::PRODUCTION_HOST must be a hostname or IP without scheme, path, or port'; exit 1 ;;
+          esac
+          printf '%s' "$PRODUCTION_HOST" | sha256sum | sed 's/ .*$//' | sed 's/^/SSH host value hash: /' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' "$PRODUCTION_SSH_PRIVATE_KEY" > "$HOME/.ssh/slate_deploy_github"
           chmod 600 "$HOME/.ssh/slate_deploy_github"
-          ssh-keyscan -T 15 -p "$PRODUCTION_SSH_PORT" "$PRODUCTION_HOST" >> "$HOME/.ssh/known_hosts" 2>/dev/null
+          if ! ssh-keyscan -T 15 -p "$PRODUCTION_SSH_PORT" "$PRODUCTION_HOST" > "$HOME/.ssh/known_hosts" 2> "$HOME/.ssh/keyscan.stderr"; then
+            echo '::error::SSH host-key scan failed; check PRODUCTION_HOST and PRODUCTION_SSH_PORT.'
+            sed -n '1,5p' "$HOME/.ssh/keyscan.stderr" || true
+            exit 1
+          fi
+          test -s "$HOME/.ssh/known_hosts" || { echo '::error::SSH host-key scan returned no host key.'; exit 1; }
           chmod 644 "$HOME/.ssh/known_hosts"
 
       - name: Run read-only server inspection
