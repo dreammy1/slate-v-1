@@ -16,9 +16,9 @@ Options -Indexes -FollowSymLinks +SymLinksIfOwnerMatch
 AddDefaultCharset UTF-8
 
 # Branded error pages (relative to RewriteBase below)
-ErrorDocument 403 /slate/403.php
-ErrorDocument 404 /slate/404.php
-ErrorDocument 500 /slate/500.php
+ErrorDocument 403 /403.php
+ErrorDocument 404 /404.php
+ErrorDocument 500 /500.php
 
 # ── Block sensitive files at the root ───────────────────────
 <FilesMatch "^\.env|composer\.json|composer\.lock|README\.md|INSTALL\.md|ARCHITECTURE\.md|CONTRIBUTING\.md|CHANGELOG\.md$">
@@ -70,7 +70,7 @@ RedirectMatch 403 ^/data/
 
 <IfModule mod_rewrite.c>
     RewriteEngine On
-    RewriteBase /slate/
+    RewriteBase /
 
     # Don't rewrite real files or directories — they're served direct.
     RewriteCond %{REQUEST_FILENAME} !-f

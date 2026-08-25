@@ -14,7 +14,7 @@ jobs:
     env:
       PRODUCTION_HOST: premium106.web-hosting.com
       PRODUCTION_USER: rakilluy
-      PRODUCTION_PATH: /home/rakilluy/greenlightinduction.rakibhasaan.com/slate
+      PRODUCTION_PATH: /home/rakilluy/greenlightinduction.rakibhasaan.com
       PRODUCTION_SSH_PRIVATE_KEY: ${{ secrets.CPANEL_DEPLOY_SSH_PRIVATE_KEY }}
       PRODUCTION_SSH_KNOWN_HOSTS: ${{ secrets.CPANEL_DEPLOY_SSH_KNOWN_HOSTS }}
       PRODUCTION_SSH_PORT: "21098"

@@ -7,5 +7,5 @@
  * redirect prevents a broken optional admin bootstrap dependency from
  * producing a blank page or HTTP 500 before the editor can load.
  */
-header('Location: /slate/plugins/content-builder/admin/post-edit.php?type=page', true, 302);
+header('Location: /plugins/content-builder/admin/post-edit.php?type=page', true, 302);
 exit;

@@ -2,9 +2,9 @@
 
 This deployment path uses the selected cPanel-native model. Every push to `main` first passes the repository’s existing quality, PHP test, security, E2E, and release-package jobs. When those jobs succeed, the `Deploy validated main to cPanel` job connects to the existing cPanel-managed repository and requests a cPanel deployment task. The deployment task pulls the GitHub `main` branch with cPanel’s fast-forward safeguards and executes the top-level `.cpanel.yml` manifest. [1] [2]
 
-> **Target directory:** `/home/rakilluy/greenlightinduction.rakibhasaan.com/slate`.
+> **Target directory:** `/home/rakilluy/greenlightinduction.rakibhasaan.com`.
 >
-> The active site responds at `https://greenlightinduction.rakibhasaan.com/slate/`. Do not change this target unless the domain’s document root is changed in cPanel.
+> The active site responds at `https://greenlightinduction.rakibhasaan.com/`. Do not change this target unless the domain’s document root is changed in cPanel.
 
 ## One-time activation
 
@@ -20,13 +20,13 @@ Add the following production environment configuration in GitHub. The defaults s
 | Variable `CPANEL_PORT`                 | `21098`                                                      | Hosting SSH port.                                 |
 | Variable `CPANEL_USER`                 | `rakilluy`                                                   | cPanel account user.                              |
 | Variable `CPANEL_REPOSITORY_ROOT`      | `/home/rakilluy/repositories/slate-v-1`                      | cPanel-managed repository.                        |
-| Variable `CPANEL_DEPLOY_HEALTH_URL`    | `https://greenlightinduction.rakibhasaan.com/slate/`         | Public post-deploy verification endpoint.         |
+| Variable `CPANEL_DEPLOY_HEALTH_URL`    | `https://greenlightinduction.rakibhasaan.com/`               | Public post-deploy verification endpoint.         |
 
 Configure any reviewer or wait-timer rules you want under the GitHub `production` environment. Without required reviewers, a passed push to `main` deploys automatically.
 
 ## Deployment behavior and preservation rules
 
-The manifest copies only deployable application source into the live target. It deliberately preserves `.env` files, `uploads/`, and `data/` so production configuration and customer-generated files are not overwritten. It excludes tests, internal documents, package artifacts, logs, backups, Git metadata, and underscore-prefixed maintenance scripts.
+The manifest copies only deployable application source into the live target. During the first root promotion, it migrates the existing nested Slate `.env`, runtime data, and uploads only if their root counterparts do not already exist, then changes the preserved `APP_URL` to the root URL. It deliberately preserves `.env` files, `uploads/`, `data/`, nested legacy copies, backup directories, ZIP archives, `.claude/`, and logs on subsequent deployments. It excludes tests, internal documents, package artifacts, Git metadata, and underscore-prefixed maintenance scripts.
 
 The active deployment job fails safely if the cPanel repository has uncommitted changes, the cPanel deployment task reports failure, or the public URL does not return a successful response. cPanel also requires a clean repository and a valid checked-in `.cpanel.yml` before it will execute deployment. [1]
 

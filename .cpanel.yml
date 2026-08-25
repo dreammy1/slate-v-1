@@ -1,9 +1,13 @@
 ---
 # Slate cPanel deployment manifest.
 # This repository is managed by cPanel at /home/rakilluy/repositories/slate-v-1.
-# Keep server-local runtime configuration and customer uploads out of deployments.
+# Preserve server-local configuration, runtime data, nested legacy copies, and backup archives.
 deployment:
   tasks:
-    - export DEPLOYPATH=/home/rakilluy/greenlightinduction.rakibhasaan.com/slate
+    - export DEPLOYPATH=/home/rakilluy/greenlightinduction.rakibhasaan.com
     - /bin/mkdir -p "$DEPLOYPATH"
-    - /usr/bin/rsync -a --delete-delay --exclude='/.git/' --exclude='/.github/' --exclude='/.cpanel.yml' --exclude='/.env' --exclude='/.env.*' --exclude='/uploads/' --exclude='/data/' --exclude='/tests/' --exclude='/docs/' --exclude='/skills/' --exclude='/scratchpad/' --exclude='/node_modules/' --exclude='/dist/' --exclude='/plugins/_dist/' --exclude='*.zip' --exclude='*.log' --exclude='error_log' --exclude='*.bak' --exclude='/_*.php' ./ "$DEPLOYPATH/"
+    - if [ ! -f "$DEPLOYPATH/.env" ] && [ -f "$DEPLOYPATH/slate/.env" ]; then /bin/cp "$DEPLOYPATH/slate/.env" "$DEPLOYPATH/.env"; /bin/chmod 600 "$DEPLOYPATH/.env"; fi
+    - if [ -f "$DEPLOYPATH/.env" ]; then if /bin/grep -q '^APP_URL=' "$DEPLOYPATH/.env"; then /bin/sed -i 's#^APP_URL=.*#APP_URL=https://greenlightinduction.rakibhasaan.com#' "$DEPLOYPATH/.env"; else echo 'APP_URL=https://greenlightinduction.rakibhasaan.com' >> "$DEPLOYPATH/.env"; fi; fi
+    - if [ ! -d "$DEPLOYPATH/uploads" ] && [ -d "$DEPLOYPATH/slate/uploads" ]; then /bin/cp -a "$DEPLOYPATH/slate/uploads" "$DEPLOYPATH/uploads"; fi
+    - if [ ! -d "$DEPLOYPATH/data" ] && [ -d "$DEPLOYPATH/slate/data" ]; then /bin/cp -a "$DEPLOYPATH/slate/data" "$DEPLOYPATH/data"; fi
+    - /usr/bin/rsync -a --delete-delay --exclude='/.git/' --exclude='/.github/' --exclude='/.cpanel.yml' --exclude='/.env' --exclude='/.env.*' --exclude='/.claude/' --exclude='/uploads/' --exclude='/data/' --exclude='/slate/' --exclude='/slate-bk/' --exclude='/slate-bk2/' --exclude='/tests/' --exclude='/docs/' --exclude='/skills/' --exclude='/scratchpad/' --exclude='/node_modules/' --exclude='/dist/' --exclude='/plugins/_dist/' --exclude='/*.zip' --exclude='*.log' --exclude='/error_log' --exclude='*.bak' --exclude='/_*.php' ./ "$DEPLOYPATH/"

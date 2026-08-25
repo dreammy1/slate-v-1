@@ -471,7 +471,7 @@ jobs:
       CPANEL_PORT: ${{ vars.CPANEL_PORT || '21098' }}
       CPANEL_USER: ${{ vars.CPANEL_USER || 'rakilluy' }}
       CPANEL_REPOSITORY_ROOT: ${{ vars.CPANEL_REPOSITORY_ROOT || '/home/rakilluy/repositories/slate-v-1' }}
-      CPANEL_DEPLOY_HEALTH_URL: ${{ vars.CPANEL_DEPLOY_HEALTH_URL || 'https://greenlightinduction.rakibhasaan.com/slate/' }}
+      CPANEL_DEPLOY_HEALTH_URL: ${{ vars.CPANEL_DEPLOY_HEALTH_URL || 'https://greenlightinduction.rakibhasaan.com/' }}
       CPANEL_DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.CPANEL_DEPLOY_SSH_PRIVATE_KEY }}
       CPANEL_DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.CPANEL_DEPLOY_SSH_KNOWN_HOSTS }}
     steps:

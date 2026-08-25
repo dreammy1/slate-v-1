@@ -42,7 +42,7 @@ if (!function_exists('env')) {
 }
 
 // ── App URL + tenant ─────────────────────────────────────────
-define('SLATE_URL', rtrim(env('APP_URL', 'https://greenlightinduction.rakibhasaan.com/slate'), '/'));
+define('SLATE_URL', rtrim(env('APP_URL', 'https://greenlightinduction.rakibhasaan.com'), '/'));
 define('TENANT_ID', (int)env('TENANT_ID', 1));
 
 // ── App secret (encryption + HMAC) ───────────────────────────
