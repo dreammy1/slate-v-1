@@ -13,8 +13,8 @@ jobs:
     environment: production
     env:
       PRODUCTION_HOST: premium106.web-hosting.com
-      PRODUCTION_USER: ${{ secrets.PRODUCTION_USER }}
-      PRODUCTION_PATH: ${{ secrets.PRODUCTION_PATH }}
+      PRODUCTION_USER: rakilluy
+      PRODUCTION_PATH: /home/rakilluy/greenlightinduction.rakibhasaan.com/slate
       PRODUCTION_SSH_PRIVATE_KEY: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
       PRODUCTION_SSH_PORT: '21098'
     steps:
@@ -22,7 +22,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for variable in PRODUCTION_USER PRODUCTION_PATH PRODUCTION_SSH_PRIVATE_KEY; do
+          for variable in PRODUCTION_SSH_PRIVATE_KEY; do
             if [ -z "${!variable:-}" ]; then
               echo "::error::Required production SSH secret is missing: ${variable}"
               exit 1
