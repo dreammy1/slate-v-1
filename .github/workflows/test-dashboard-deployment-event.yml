@@ -1,0 +1,61 @@
+name: Test command-center deployment event
+
+on:
+  workflow_dispatch:
+    inputs:
+      webhook_url:
+        description: Public command-center deployment event endpoint
+        required: true
+        default: https://slateops-lkwg6pc5.manus.space/api/events/deployment
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  send-test-signal:
+    name: Send signed test signal
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      DASHBOARD_DEPLOY_WEBHOOK_SECRET: ${{ secrets.DASHBOARD_DEPLOY_WEBHOOK_SECRET }}
+      DASHBOARD_DEPLOY_WEBHOOK_URL: ${{ inputs.webhook_url }}
+    steps:
+      - name: Validate test-only endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$DASHBOARD_DEPLOY_WEBHOOK_SECRET"
+          case "$DASHBOARD_DEPLOY_WEBHOOK_URL" in
+            https://*/api/events/deployment) ;;
+            *) echo "::error::The endpoint must be an HTTPS deployment-event route."; exit 1 ;;
+          esac
+
+      - name: Send signed test deployment event
+        shell: bash
+        run: |
+          set -euo pipefail
+          timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          delivery_id="test-deployment-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          commit_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$GITHUB_SHA"
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          payload="$(jq -nc \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg timestamp "$timestamp" \
+            --arg sha "$GITHUB_SHA" \
+            --arg commit_url "$commit_url" \
+            --arg run_id "$GITHUB_RUN_ID" \
+            --arg run_url "$run_url" \
+            --arg target_url "https://greenlightinduction.rakibhasaan.com/" \
+            '{version: 1, repository: $repository, environment: "test", state: "success", test: true, timestamp: $timestamp, commit: {sha: $sha, url: $commit_url}, workflow: {runId: $run_id, url: $run_url}, targetUrl: $target_url, health: {status: "not_checked", url: $target_url}, summary: "Manual signed test signal only; no cPanel deployment was invoked", releaseNotes: ["GitHub Actions test-only webhook validation", "No cPanel deployment steps are present in this workflow"]}')"
+          signature="sha256=$(printf '%s' "$payload" | openssl dgst -sha256 -hmac "$DASHBOARD_DEPLOY_WEBHOOK_SECRET" -hex | sed 's/^.* //')"
+          curl --fail --silent --show-error --max-time 20 \
+            -X POST "$DASHBOARD_DEPLOY_WEBHOOK_URL" \
+            -H 'Content-Type: application/json' \
+            -H 'X-GitHub-Event: deployment' \
+            -H "X-GitHub-Delivery: $delivery_id" \
+            -H "X-Hub-Signature-256: $signature" \
+            --data-binary "$payload"
+          echo "### Signed test signal delivered" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Delivery: \`$delivery_id\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- cPanel deployment: not invoked" >> "$GITHUB_STEP_SUMMARY"

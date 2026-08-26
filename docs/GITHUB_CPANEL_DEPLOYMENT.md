@@ -24,6 +24,12 @@ Add the following production environment configuration in GitHub. The defaults s
 
 Configure any reviewer or wait-timer rules you want under the GitHub `production` environment. Without required reviewers, a passed push to `main` deploys automatically.
 
+## Deferred command-center callback
+
+The workflow contains a best-effort signed deployment callback after its cPanel deployment and public health check complete successfully. It remains disabled until both of the following `production` environment values are explicitly configured: secret `DASHBOARD_DEPLOY_WEBHOOK_SECRET` and variable `DASHBOARD_DEPLOY_WEBHOOK_URL`.
+
+Do not configure the endpoint variable until the command-center public readiness URL consistently returns HTTP `204` and identifies the current runtime. When it is safe to activate, set `DASHBOARD_DEPLOY_WEBHOOK_URL` to `https://slateops-lkwg6pc5.manus.space/api/events/deployment` and make the secret value exactly match the command-center project secret `GITHUB_DEPLOY_WEBHOOK_SECRET`. Callback delivery is intentionally best-effort: a telemetry failure emits a workflow warning but never rolls back an already-verified cPanel deployment.
+
 ## Deployment behavior and preservation rules
 
 The manifest copies only deployable application source into the live target. During the first root promotion, it migrates the existing nested Slate `.env`, runtime data, and uploads only if their root counterparts do not already exist, then changes the preserved `APP_URL` to the root URL. It sets the document-root directory to `755` so LiteSpeed can traverse it and process Slate’s root `.htaccess`; the application’s own hardening rules then disable directory indexes and block sensitive paths, including preserved ZIP archives. It deliberately preserves `.env` files, `uploads/`, `data/`, nested legacy copies, backup directories, ZIP archives, `.claude/`, and logs on subsequent deployments. It excludes tests, internal documents, package artifacts, Git metadata, and underscore-prefixed maintenance scripts.
@@ -36,7 +42,7 @@ To roll back safely, revert the faulty GitHub commit on `main`; the same validat
 
 ## Public-root hardening
 
-The parent domain root currently lists directory contents while the application lives under `/slate/`. The application’s own `.htaccess` disables indexes inside `/slate/`, but the parent root should separately disable directory indexes or redirect to `/slate/` in cPanel to prevent public exposure of archives and directory names.
+The application now deploys to the confirmed domain document root. Its root `.htaccess` disables directory indexes and blocks direct access to preserved archive files, while the deployment manifest preserves runtime data and backups.
 
 ## References
 
