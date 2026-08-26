@@ -1,0 +1,72 @@
+name: Authorize Slate Ops dashboard deployment key
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  authorize-dashboard-key:
+    name: Authorize isolated dashboard SSH key
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      CPANEL_HOST: ${{ vars.CPANEL_HOST || 'premium106.web-hosting.com' }}
+      CPANEL_PORT: ${{ vars.CPANEL_PORT || '21098' }}
+      CPANEL_USER: ${{ vars.CPANEL_USER || 'rakilluy' }}
+      CPANEL_DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.CPANEL_DEPLOY_SSH_PRIVATE_KEY }}
+      CPANEL_DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.CPANEL_DEPLOY_SSH_KNOWN_HOSTS }}
+      OPS_DASHBOARD_DEPLOY_PUBLIC_KEY: ${{ secrets.OPS_DASHBOARD_DEPLOY_PUBLIC_KEY }}
+    steps:
+      - name: Validate authorization-only configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          for variable in CPANEL_HOST CPANEL_PORT CPANEL_USER CPANEL_DEPLOY_SSH_PRIVATE_KEY CPANEL_DEPLOY_SSH_KNOWN_HOSTS OPS_DASHBOARD_DEPLOY_PUBLIC_KEY; do
+            if [ -z "${!variable:-}" ]; then
+              echo "::error::Missing production authorization configuration: ${variable}"
+              exit 1
+            fi
+          done
+          case "$OPS_DASHBOARD_DEPLOY_PUBLIC_KEY" in
+            ssh-ed25519\ * ) ;;
+            * ) echo '::error::Dashboard key must be an ssh-ed25519 public key.'; exit 1 ;;
+          esac
+
+      - name: Prepare pinned existing deployment identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -d -m 700 "$HOME/.ssh"
+          umask 077
+          printf '%s\n' "$CPANEL_DEPLOY_SSH_PRIVATE_KEY" > "$HOME/.ssh/cpanel_existing_deploy"
+          printf '%s\n' "$CPANEL_DEPLOY_SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/cpanel_existing_deploy"
+          chmod 644 "$HOME/.ssh/known_hosts"
+
+      - name: Append only the isolated dashboard public key
+        shell: bash
+        run: |
+          set -euo pipefail
+          key_b64="$(printf '%s' "$OPS_DASHBOARD_DEPLOY_PUBLIC_KEY" | base64 -w0)"
+          ssh -i "$HOME/.ssh/cpanel_existing_deploy" -o BatchMode=yes -o ConnectTimeout=20 -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -p "$CPANEL_PORT" "$CPANEL_USER@$CPANEL_HOST" "bash -s -- '$key_b64'" <<'REMOTE'
+          set -euo pipefail
+          key_b64="$1"
+          key="$(printf '%s' "$key_b64" | base64 -d)"
+          case "$key" in ssh-ed25519\ * ) ;; * ) exit 1 ;; esac
+          install -d -m 700 "$HOME/.ssh"
+          touch "$HOME/.ssh/authorized_keys"
+          chmod 600 "$HOME/.ssh/authorized_keys"
+          if grep -qxF "$key" "$HOME/.ssh/authorized_keys"; then
+            echo 'Dashboard key was already authorized.'
+          else
+            printf '%s\n' "$key" >> "$HOME/.ssh/authorized_keys"
+            echo 'Dashboard key authorized.'
+          fi
+          REMOTE
+
+      - name: Confirm scope
+        run: |
+          echo 'Only the dedicated dashboard public key was authorized.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'No application files, deployment repositories, or root-site paths were changed.' >> "$GITHUB_STEP_SUMMARY"
